@@ -98,6 +98,9 @@ error_log('Content type: ' . ($_SERVER['CONTENT_TYPE'] ?? 'UNKNOWN'));
 $input = file_get_contents('php://input');
 if (!empty($input)) {
     error_log('Telegram webhook received: ' . substr($input, 0, 500));
+    if (function_exists('bot_log')) {
+        bot_log('Telegram webhook received', ['input_length' => strlen($input)]);
+    }
 } else {
     error_log('Telegram webhook received: EMPTY INPUT');
 }
@@ -174,8 +177,21 @@ try {
                 $db = $db_service->getDatabase();
                 $parking_service = new \TelegramBot\Services\ParkingService();
                 
-                $user_data = $db->getTelegramUserByTelegramId($user->getId());
-                if ($user_data && $user_data['license_plate']) {
+                // Try to get user data with retry (in case link was just completed)
+                $user_data = null;
+                $max_retries = 3;
+                for ($i = 0; $i < $max_retries; $i++) {
+                    $user_data = $db->getTelegramUserByTelegramId($user->getId());
+                    if ($user_data && !empty($user_data['license_plate'])) {
+                        break;
+                    }
+                    if ($i < $max_retries - 1) {
+                        // Wait a bit before retry (in case link was just completed)
+                        usleep(500000); // 0.5 seconds
+                    }
+                }
+                
+                if ($user_data && !empty($user_data['license_plate'])) {
                     $space_id = $payload_data['space_id'];
                     $payment_type = $payload_data['payment_type'] ?? 'stars';
                     
@@ -266,13 +282,13 @@ try {
                         // Send success message based on payment type
                         if ($payment_type === 'ton') {
                             $success_text = \TelegramBot\Services\LanguageService::t('ton_payment_success', $lang, [
-                                'zone_name' => $payload_data['zone_name'] ?? 'Premium Zone',
+                                'zone_name' => $payload_data['zone_name'] ?? '',
                                 'space_id' => $space_id,
                                 'license_plate' => $user_data['license_plate']
                             ]);
                         } else {
                             $success_text = \TelegramBot\Services\LanguageService::t('stars_payment_success', $lang, [
-                                'zone_name' => $payload_data['zone_name'] ?? 'Premium Zone',
+                                'zone_name' => $payload_data['zone_name'] ?? '',
                                 'space_id' => $space_id,
                                 'license_plate' => $user_data['license_plate']
                             ]);
@@ -298,6 +314,13 @@ try {
                     }
                 } else {
                     error_log("User not linked - cannot create reservation after Telegram payment");
+                    // Send error message to user
+                    $error_text = \TelegramBot\Services\LanguageService::t('not_linked', $lang) ?? 
+                                "❌ Your Telegram account is not linked. Please use /link <license_plate> or the link from the web app.";
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => $error_text
+                    ]);
                 }
             }
             
@@ -361,7 +384,12 @@ try {
             ]);
         } elseif (str_starts_with($data, 'reserve_space:')) {
             // Handle space reservation
-            $space_id = (int)substr($data, 14); // Remove 'reserve_space:' prefix
+            // Extract space_id from callback_data: "reserve_space:123"
+            $parts = explode(':', $data, 2);
+            $space_id_str = isset($parts[1]) ? trim($parts[1]) : '';
+            $space_id = !empty($space_id_str) ? (int)$space_id_str : 0;
+            
+            error_log("Reserve space callback: data='{$data}', space_id_str='{$space_id_str}', space_id={$space_id}");
             
             $db_service = new \TelegramBot\Services\DatabaseService();
             $db = $db_service->getDatabase();
@@ -375,6 +403,20 @@ try {
                 ]);
                 $telegram->answerCallbackQuery([
                     'callback_query_id' => $callback_query->getId()
+                ]);
+                exit();
+            }
+            
+            // Validate space_id
+            if (empty($space_id_str) || $space_id <= 0) {
+                error_log("Reserve space: Invalid space_id extracted. data='{$data}', space_id_str='{$space_id_str}', space_id={$space_id}");
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => \TelegramBot\Services\LanguageService::t('reserve_not_found', $lang, ['space_id' => $space_id ?: 'N/A'])
+                ]);
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => \TelegramBot\Services\LanguageService::t('reserve_not_found', $lang, ['space_id' => $space_id ?: 'N/A'])
                 ]);
                 exit();
             }
@@ -429,14 +471,45 @@ try {
             ]);
         } elseif (str_starts_with($data, 'payment_stars:')) {
             // User selected Telegram Stars payment
-            $space_id = (int)substr($data, 15); // Remove 'payment_stars:' prefix
+            // Extract space_id from callback_data: "payment_stars:123"
+            $parts = explode(':', $data, 2);
+            $space_id_str = isset($parts[1]) ? trim($parts[1]) : '';
+            $space_id = !empty($space_id_str) ? (int)$space_id_str : 0;
+            
+            // Validate space_id
+            if (empty($space_id_str) || $space_id <= 0) {
+                error_log("Payment stars: Invalid space_id extracted from callback_data: '{$data}' -> '{$space_id_str}' -> {$space_id}");
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                exit();
+            }
             
             $db_service = new \TelegramBot\Services\DatabaseService();
             $db = $db_service->getDatabase();
             $parking_service = new \TelegramBot\Services\ParkingService();
             
-            $user_data = $db->getTelegramUserByTelegramId($user->getId());
-            if (!$user_data) {
+            // Try to get user data with retry (in case link was just completed)
+            $user_data = null;
+            $max_retries = 3;
+            for ($i = 0; $i < $max_retries; $i++) {
+                $user_data = $db->getTelegramUserByTelegramId($user->getId());
+                if ($user_data && !empty($user_data['license_plate'])) {
+                    break;
+                }
+                if ($i < $max_retries - 1) {
+                    // Wait a bit before retry (in case link was just completed)
+                    usleep(500000); // 0.5 seconds
+                }
+            }
+            
+            if (!$user_data || empty($user_data['license_plate'])) {
+                error_log("Payment stars: User not linked after {$max_retries} retries for user {$user->getId()}");
                 $telegram->sendMessage([
                     'chat_id' => $chat_id,
                     'text' => \TelegramBot\Services\LanguageService::t('not_linked', $lang)
@@ -455,14 +528,54 @@ try {
             ]);
         } elseif (str_starts_with($data, 'payment_ton:')) {
             // User selected TON wallet payment
-            $space_id = (int)substr($data, 13); // Remove 'payment_ton:' prefix
+            // Extract space_id from callback_data: "payment_ton:123"
+            $parts = explode(':', $data, 2);
+            $space_id_str = isset($parts[1]) ? trim($parts[1]) : '';
+            $space_id = !empty($space_id_str) ? (int)$space_id_str : 0;
+            
+            error_log("Payment TON callback: data='{$data}', space_id_str='{$space_id_str}', space_id={$space_id}");
+            if (function_exists('bot_log')) {
+                bot_log("Payment TON callback", ['data' => $data, 'space_id_str' => $space_id_str, 'space_id' => $space_id, 'parts' => $parts]);
+            }
+            
+            // Validate space_id
+            if (empty($space_id_str) || $space_id <= 0) {
+                $error_msg = "Payment TON: Invalid space_id extracted from callback_data: '{$data}' -> '{$space_id_str}' -> {$space_id}";
+                error_log($error_msg);
+                if (function_exists('bot_log')) {
+                    bot_log($error_msg, ['data' => $data, 'space_id_str' => $space_id_str, 'space_id' => $space_id]);
+                }
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                exit();
+            }
             
             $db_service = new \TelegramBot\Services\DatabaseService();
             $db = $db_service->getDatabase();
             $parking_service = new \TelegramBot\Services\ParkingService();
             
-            $user_data = $db->getTelegramUserByTelegramId($user->getId());
-            if (!$user_data) {
+            // Try to get user data with retry (in case link was just completed)
+            $user_data = null;
+            $max_retries = 3;
+            for ($i = 0; $i < $max_retries; $i++) {
+                $user_data = $db->getTelegramUserByTelegramId($user->getId());
+                if ($user_data && !empty($user_data['license_plate'])) {
+                    break;
+                }
+                if ($i < $max_retries - 1) {
+                    // Wait a bit before retry (in case link was just completed)
+                    usleep(500000); // 0.5 seconds
+                }
+            }
+            
+            if (!$user_data || empty($user_data['license_plate'])) {
+                error_log("Payment TON: User not linked after {$max_retries} retries for user {$user->getId()}");
                 $telegram->sendMessage([
                     'chat_id' => $chat_id,
                     'text' => \TelegramBot\Services\LanguageService::t('not_linked', $lang)
@@ -473,15 +586,28 @@ try {
                 exit();
             }
             
+            error_log("Webhook: About to call handlePaymentMethodSelection with space_id={$space_id}, payment_method=ton");
+            if (function_exists('bot_log')) {
+                bot_log("Webhook: About to call handlePaymentMethodSelection", ['space_id' => $space_id, 'payment_method' => 'ton']);
+            }
+            
             $reserve_command = new \TelegramBot\Commands\ReserveCommand();
             $reserve_command->handlePaymentMethodSelection($telegram, $chat_id, $parking_service, $space_id, 'ton', $user_data, $lang);
+            
+            error_log("Webhook: handlePaymentMethodSelection completed for space_id={$space_id}");
+            if (function_exists('bot_log')) {
+                bot_log("Webhook: handlePaymentMethodSelection completed", ['space_id' => $space_id]);
+            }
             
             $telegram->answerCallbackQuery([
                 'callback_query_id' => $callback_query->getId()
             ]);
         } elseif (str_starts_with($data, 'payment_sent:')) {
             // User sent payment, ask for transaction hash
-            $space_id = (int)substr($data, 13);
+            // Extract space_id from callback_data: "payment_sent:123"
+            $parts = explode(':', $data, 2);
+            $space_id_str = isset($parts[1]) ? trim($parts[1]) : '';
+            $space_id = !empty($space_id_str) ? (int)$space_id_str : 0;
             
             $text = \TelegramBot\Services\LanguageService::t('reserve_payment_enter_tx', $lang);
             
@@ -506,11 +632,42 @@ try {
             $space = $parking_service->getSpaceById($space_id);
             
             if ($space && isset($space['zone'])) {
-                $recipient_address = defined('TON_RECIPIENT_ADDRESS') ? TON_RECIPIENT_ADDRESS : 'YOUR_TON_WALLET_ADDRESS';
-                $amount_ton = $space['zone']['hourly_rate'] ?? 2.0;
+                $recipient_address = defined('TON_RECIPIENT_ADDRESS') && !empty(TON_RECIPIENT_ADDRESS) ? TON_RECIPIENT_ADDRESS : '';
+                if (empty($recipient_address)) {
+                    error_log("Webhook: TON_RECIPIENT_ADDRESS not configured");
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                    ]);
+                    exit();
+                }
+                // Always load zone data from database
+                $db_service = new \TelegramBot\Services\DatabaseService();
+                $db = $db_service->getDatabase();
+                $zone_data = $db->getZoneBySpaceId($space_id);
+                
+                if (!$zone_data || !isset($zone_data['hourly_rate'])) {
+                    error_log("Webhook: Zone data not found for space_id: {$space_id}");
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                    ]);
+                    exit();
+                }
+                
+                $amount_ton = (float)$zone_data['hourly_rate'];
+                if (!isset($zone_data['name'])) {
+                    error_log("Webhook: Zone name not found for space_id: {$space_id}");
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_invalid_space', $lang)
+                    ]);
+                    exit();
+                }
+                $zone_name = $zone_data['name'];
                 
                 $text = \TelegramBot\Services\LanguageService::t('reserve_payment_instructions', $lang, [
-                    'zone_name' => $space['zone']['name'],
+                    'zone_name' => $zone_name,
                     'space_id' => $space_id,
                     'amount_ton' => $amount_ton,
                     'recipient_address' => $recipient_address,
@@ -630,72 +787,118 @@ try {
             $text = $command_from_button;
             error_log("Button clicked, converted to command: {$text}");
         } else {
-            // Check if this might be a wallet address or transaction hash
+            // Check if this might be a license plate (for linking account)
             $db_service = new \TelegramBot\Services\DatabaseService();
             $db = $db_service->getDatabase();
             $user_data = $db->getTelegramUserByTelegramId($user->getId());
             
-            if ($user_data) {
-                // Check if it looks like a TON wallet address or transaction hash
-                if (preg_match('/^(EQ|EQD|0:)[A-Za-z0-9_-]{48,}$/', $text) || preg_match('/^[A-Za-z0-9]{64}$/', $text)) {
-                    // Might be wallet address or TX hash
-                    // Try wallet address first
-                    if (preg_match('/^(EQ|EQD|0:)[A-Za-z0-9_-]{48}$/', $text)) {
+            $text_trimmed = trim($text);
+            
+            // Check if user is not linked and text looks like a license plate
+            if (!$user_data && preg_match('/^[A-Z0-9\-\s]{2,10}$/i', $text_trimmed)) {
+                error_log("User not linked, text looks like license plate: '{$text_trimmed}'");
+                // Try to link account with this license plate
+                // Create a new message with /link command by modifying the message object
+                $link_text = "/link " . $text_trimmed;
+                // Create new message data
+                $message_data = [
+                    'message_id' => time(),
+                    'from' => [
+                        'id' => $user->getId(),
+                        'is_bot' => false,
+                        'first_name' => $user->getFirstName() ?? 'User',
+                        'username' => $user->getUsername()
+                    ],
+                    'chat' => [
+                        'id' => $chat_id,
+                        'type' => 'private'
+                    ],
+                    'date' => time(),
+                    'text' => $link_text
+                ];
+                $link_message = new \TelegramBot\TelegramAPI\Message($message_data);
+                $link_command = new \TelegramBot\Commands\LinkCommand();
+                $link_command->handle($telegram, $link_message);
+                http_response_code(200);
+                echo json_encode(['ok' => true]);
+                exit();
+            }
+            
+            // Check if it looks like a TON wallet address or transaction hash
+            // TON addresses can be EQ, UQ, kQ, EQD, or 0: format
+            error_log("Checking if text is wallet address: '{$text_trimmed}' (length: " . strlen($text_trimmed) . ")");
+            
+            if (preg_match('/^(EQ|UQ|kQ|EQD|0:)[A-Za-z0-9_-]{46,48}$/', $text_trimmed) || preg_match('/^[A-Za-z0-9]{64}$/', $text_trimmed)) {
+                error_log("Text matches wallet address or TX hash pattern");
+                // Might be wallet address or TX hash
+                // Try wallet address first (46-48 chars after prefix, TON addresses can vary)
+                if (preg_match('/^(EQ|UQ|kQ|EQD|0:)[A-Za-z0-9_-]{46,48}$/', $text_trimmed)) {
+                    error_log("Text matches wallet address format, processing...");
+                    if ($user_data) {
                         $wallet_command = new \TelegramBot\Commands\WalletCommand();
-                        $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text, $lang);
-                        http_response_code(200);
-                        echo json_encode(['ok' => true]);
-                        exit();
+                        $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
                     } else {
+                        // User not linked, but still try to process wallet address
+                        // This allows users to connect wallet even if not fully linked
+                        error_log("User not linked, but processing wallet address anyway");
+                        $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                        $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
+                    }
+                    http_response_code(200);
+                    echo json_encode(['ok' => true]);
+                    exit();
+                } else {
                         // Might be transaction hash - try to verify payment
                         // Check if user has pending payment
-                        $db_service = new \TelegramBot\Services\DatabaseService();
-                        $db = $db_service->getDatabase();
-                        
-                        // Try to find recent pending payment for this user
-                        $stmt = $db->prepare("
-                            SELECT tp.*, ps.id as space_id 
-                            FROM ton_payments tp
-                            JOIN parking_spaces ps ON tp.parking_space_id = ps.id
-                            WHERE tp.license_plate = ? 
-                            AND tp.status = 'pending'
-                            AND tp.created_at > datetime('now', '-1 hour')
-                            ORDER BY tp.created_at DESC
-                            LIMIT 1
-                        ");
-                        $stmt->bindValue(1, $user_data['license_plate']);
-                        $result = $stmt->execute();
-                        $pending_payment = $result->fetchArray(SQLITE3_ASSOC);
-                        
-                        if ($pending_payment) {
-                            // Found pending payment, verify this transaction
-                            $space_id = $pending_payment['space_id'];
-                            $parking_service = new \TelegramBot\Services\ParkingService();
-                            $reserve_command = new \TelegramBot\Commands\ReserveCommand();
+                        if ($user_data) {
+                            error_log("Text might be transaction hash, checking for pending payments");
+                            $db_service = new \TelegramBot\Services\DatabaseService();
+                            $db = $db_service->getDatabase();
                             
-                            $reserve_command->handlePaymentVerification(
-                                $telegram, 
-                                $chat_id, 
-                                $parking_service, 
-                                $space_id, 
-                                $text, // tx_hash
-                                $user_data, 
-                                $lang
-                            );
-                        } else {
-                            // No pending payment found
-                            $telegram->sendMessage([
-                                'chat_id' => $chat_id,
-                                'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_tx_unknown', $lang)
-                            ]);
+                            // Try to find recent pending payment for this user
+                            $stmt = $db->prepare("
+                                SELECT tp.*, ps.id as space_id 
+                                FROM ton_payments tp
+                                JOIN parking_spaces ps ON tp.parking_space_id = ps.id
+                                WHERE tp.license_plate = ? 
+                                AND tp.status = 'pending'
+                                AND tp.created_at > datetime('now', '-1 hour')
+                                ORDER BY tp.created_at DESC
+                                LIMIT 1
+                            ");
+                            $stmt->bindValue(1, $user_data['license_plate']);
+                            $result = $stmt->execute();
+                            $pending_payment = $result->fetchArray(SQLITE3_ASSOC);
+                            
+                            if ($pending_payment) {
+                                // Found pending payment, verify this transaction
+                                $space_id = $pending_payment['space_id'];
+                                $parking_service = new \TelegramBot\Services\ParkingService();
+                                $reserve_command = new \TelegramBot\Commands\ReserveCommand();
+                                
+                                $reserve_command->handlePaymentVerification(
+                                    $telegram, 
+                                    $chat_id, 
+                                    $parking_service, 
+                                    $space_id, 
+                                    $text_trimmed, // tx_hash
+                                    $user_data, 
+                                    $lang
+                                );
+                            } else {
+                                // No pending payment found
+                                $telegram->sendMessage([
+                                    'chat_id' => $chat_id,
+                                    'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_tx_unknown', $lang)
+                                ]);
+                            }
+                            
+                            http_response_code(200);
+                            echo json_encode(['ok' => true]);
+                            exit();
                         }
-                        
-                        http_response_code(200);
-                        echo json_encode(['ok' => true]);
-                        exit();
                     }
                 }
-            }
             
             error_log('Message is not a command or button: ' . substr($text, 0, 50));
             http_response_code(200);

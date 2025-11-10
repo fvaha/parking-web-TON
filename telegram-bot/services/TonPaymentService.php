@@ -229,5 +229,79 @@ class TonPaymentService {
         
         return ['status' => 'pending', 'error' => $result['error'] ?? 'Transaction not found'];
     }
+    
+    /**
+     * Check TON wallet balance
+     * @param string $wallet_address TON wallet address (EQ, UQ, kQ, or 0: format)
+     * @return array ['success' => bool, 'balance_ton' => float, 'error' => string]
+     */
+    public function checkWalletBalance($wallet_address) {
+        if (empty($wallet_address)) {
+            return ['success' => false, 'error' => 'Wallet address is required'];
+        }
+        
+        // Normalize address - convert UQ/kQ to EQ format if needed for API
+        $normalized_address = $this->normalizeAddressForAPI($wallet_address);
+        
+        // Use TON API to get balance
+        $api_url = "https://tonapi.io/v2/accounts/{$normalized_address}";
+        
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => "Accept: application/json\r\n",
+                'timeout' => 10
+            ]
+        ]);
+        
+        $response = @file_get_contents($api_url, false, $context);
+        
+        if (!$response) {
+            // Try alternative API
+            $api_url2 = "https://toncenter.com/api/v2/getAddressInformation?address=" . urlencode($normalized_address);
+            $response = @file_get_contents($api_url2, false, $context);
+            
+            if (!$response) {
+                return ['success' => false, 'error' => 'Failed to connect to TON API'];
+            }
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (!$data) {
+            return ['success' => false, 'error' => 'Invalid API response'];
+        }
+        
+        // Extract balance from response
+        $balance_nano = 0;
+        
+        if (isset($data['balance'])) {
+            $balance_nano = (int)$data['balance'];
+        } elseif (isset($data['result']['balance'])) {
+            $balance_nano = (int)$data['result']['balance'];
+        } elseif (isset($data['balance_nano'])) {
+            $balance_nano = (int)$data['balance_nano'];
+        } else {
+            return ['success' => false, 'error' => 'Balance not found in API response'];
+        }
+        
+        // Convert nanoTON to TON
+        $balance_ton = (float)($balance_nano / 1000000000);
+        
+        return [
+            'success' => true,
+            'balance_ton' => $balance_ton,
+            'balance_nano' => $balance_nano
+        ];
+    }
+    
+    /**
+     * Normalize address for API calls (convert UQ/kQ to EQ if possible)
+     */
+    private function normalizeAddressForAPI($address) {
+        // TON API can handle UQ/kQ formats, but some APIs prefer EQ
+        // For now, return as-is since modern APIs support all formats
+        return $address;
+    }
 }
 

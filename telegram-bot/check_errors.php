@@ -14,12 +14,62 @@ echo "<pre>";
 
 $errors = [];
 
+// Check .env file first
+echo "1. Checking .env file...\n";
+$env_file = __DIR__ . '/../.env';
+if (file_exists($env_file)) {
+    echo "   ✓ .env file exists at: {$env_file}\n";
+    $env_content = file_get_contents($env_file);
+    if (strpos($env_content, 'TELEGRAM_BOT_TOKEN') !== false) {
+        echo "   ✓ TELEGRAM_BOT_TOKEN found in .env\n";
+        // Try to extract token value
+        if (preg_match('/TELEGRAM_BOT_TOKEN\s*=\s*([^\s\n]+)/', $env_content, $matches)) {
+            $token_value = trim($matches[1], '"\'');
+            if (!empty($token_value) && $token_value !== 'YOUR_TELEGRAM_BOT_TOKEN_HERE' && $token_value !== 'YOUR_BOT_TOKEN_HERE') {
+                echo "   ✓ Token value is set (not placeholder)\n";
+            } else {
+                $errors[] = "TELEGRAM_BOT_TOKEN is set to placeholder value in .env";
+                echo "   ❌ TELEGRAM_BOT_TOKEN is set to placeholder value\n";
+            }
+        }
+    } else {
+        $errors[] = "TELEGRAM_BOT_TOKEN not found in .env file";
+        echo "   ❌ TELEGRAM_BOT_TOKEN not found in .env file\n";
+    }
+} else {
+    $errors[] = ".env file not found at: {$env_file}";
+    echo "   ❌ .env file not found at: {$env_file}\n";
+    echo "   Please create .env file in project root with TELEGRAM_BOT_TOKEN\n";
+}
+
 // Check config
-echo "1. Checking config.php...\n";
+echo "\n2. Checking config.php...\n";
 try {
     require_once __DIR__ . '/config.php';
     if (defined('TELEGRAM_BOT_TOKEN')) {
-        echo "   ✓ Config loaded, token: " . substr(TELEGRAM_BOT_TOKEN, 0, 10) . "...\n";
+        $token = TELEGRAM_BOT_TOKEN;
+        if (!empty($token) && $token !== 'YOUR_BOT_TOKEN_HERE') {
+            echo "   ✓ Config loaded, token: " . substr($token, 0, 10) . "...\n";
+            
+            // Test if token is valid
+            echo "   Testing token validity...\n";
+            $test_url = "https://api.telegram.org/bot{$token}/getMe";
+            $test_response = @file_get_contents($test_url);
+            if ($test_response) {
+                $test_data = json_decode($test_response, true);
+                if ($test_data['ok']) {
+                    echo "   ✓ Token is valid - Bot: @{$test_data['result']['username']}\n";
+                } else {
+                    $errors[] = "Telegram bot token is invalid: " . ($test_data['description'] ?? 'Unknown error');
+                    echo "   ❌ Token is invalid: " . ($test_data['description'] ?? 'Unknown error') . "\n";
+                }
+            } else {
+                echo "   ⚠ Could not test token (network issue?)\n";
+            }
+        } else {
+            $errors[] = "TELEGRAM_BOT_TOKEN is empty or placeholder";
+            echo "   ❌ TELEGRAM_BOT_TOKEN is empty or placeholder\n";
+        }
     } else {
         $errors[] = "TELEGRAM_BOT_TOKEN not defined";
         echo "   ❌ TELEGRAM_BOT_TOKEN not defined\n";
@@ -27,10 +77,50 @@ try {
 } catch (Exception $e) {
     $errors[] = "Config error: " . $e->getMessage();
     echo "   ❌ Error: " . $e->getMessage() . "\n";
+    echo "   Stack trace: " . $e->getTraceAsString() . "\n";
+}
+
+// Check webhook status
+if (defined('TELEGRAM_BOT_TOKEN') && !empty(TELEGRAM_BOT_TOKEN)) {
+    echo "\n3. Checking webhook status...\n";
+    $webhook_url = defined('TELEGRAM_WEBHOOK_URL') ? TELEGRAM_WEBHOOK_URL : 'https://parkiraj.info/telegram-bot/webhook.php';
+    $webhook_info_url = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN . "/getWebhookInfo";
+    $webhook_info = @file_get_contents($webhook_info_url);
+    
+    if ($webhook_info) {
+        $webhook_data = json_decode($webhook_info, true);
+        if ($webhook_data['ok']) {
+            $info = $webhook_data['result'];
+            echo "   Current webhook URL: " . ($info['url'] ?: 'Not set') . "\n";
+            echo "   Expected URL: {$webhook_url}\n";
+            
+            if ($info['url'] === $webhook_url) {
+                echo "   ✓ Webhook URL is correct\n";
+            } else {
+                $errors[] = "Webhook URL mismatch. Current: {$info['url']}, Expected: {$webhook_url}";
+                echo "   ❌ Webhook URL mismatch!\n";
+                echo "   Run setup_webhook.php to fix this\n";
+            }
+            
+            echo "   Pending updates: {$info['pending_update_count']}\n";
+            if (isset($info['last_error_date']) && $info['last_error_date']) {
+                $error_message = isset($info['last_error_message']) ? $info['last_error_message'] : 'Unknown error';
+                $errors[] = "Webhook error: {$error_message} (at " . date('Y-m-d H:i:s', $info['last_error_date']) . ")";
+                echo "   ❌ Last error: {$error_message}\n";
+                echo "   Error date: " . date('Y-m-d H:i:s', $info['last_error_date']) . "\n";
+            } else {
+                echo "   ✓ No webhook errors\n";
+            }
+        } else {
+            echo "   ⚠ Could not get webhook info\n";
+        }
+    } else {
+        echo "   ⚠ Could not connect to Telegram API to check webhook\n";
+    }
 }
 
 // Check TelegramAPI
-echo "\n2. Checking TelegramAPI.php...\n";
+echo "\n4. Checking TelegramAPI.php...\n";
 try {
     require_once __DIR__ . '/TelegramAPI.php';
     if (class_exists('TelegramAPI')) {
@@ -45,7 +135,7 @@ try {
 }
 
 // Check commands
-echo "\n3. Checking commands...\n";
+echo "\n5. Checking commands...\n";
 $commands = [
     'StartCommand.php',
     'LinkCommand.php',
@@ -81,7 +171,7 @@ foreach ($commands as $cmd) {
 }
 
 // Check services
-echo "\n4. Checking services...\n";
+echo "\n6. Checking services...\n";
 $services = [
     'LanguageService.php',
     'DatabaseService.php',
@@ -112,7 +202,7 @@ foreach ($services as $svc) {
 }
 
 // Check database
-echo "\n5. Checking database...\n";
+echo "\n7. Checking database...\n";
 try {
     $db_paths = [];
     

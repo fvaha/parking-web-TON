@@ -56,6 +56,10 @@ $commands = [
         'description' => 'Reserve a parking space'
     ],
     [
+        'command' => 'wallet',
+        'description' => 'Manage your TON wallet connection'
+    ],
+    [
         'command' => 'help',
         'description' => 'Show all available commands'
     ],

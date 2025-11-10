@@ -44,7 +44,49 @@ class StatusCommand {
             $text .= "🅿️ Space ID: {$space['id']}\n";
             $text .= "Status: " . strtoupper($space['status']) . "\n";
             if ($space['reservation_time']) {
-                $text .= "Reserved: " . date('Y-m-d H:i', strtotime($space['reservation_time'])) . "\n";
+                $reservation_time = date('Y-m-d H:i', strtotime($space['reservation_time']));
+                $text .= "Reserved: {$reservation_time}\n";
+                
+                // Calculate and show duration if end_time is available
+                if (!empty($space['reservation_end_time'])) {
+                    $end_time = date('Y-m-d H:i', strtotime($space['reservation_end_time']));
+                    $text .= "Expires: {$end_time}\n";
+                    
+                    // Calculate remaining time
+                    $now = time();
+                    $end_timestamp = strtotime($space['reservation_end_time']);
+                    $remaining_seconds = $end_timestamp - $now;
+                    
+                    if ($remaining_seconds > 0) {
+                        $remaining_hours = floor($remaining_seconds / 3600);
+                        $remaining_minutes = floor(($remaining_seconds % 3600) / 60);
+                        
+                        if ($remaining_hours > 0) {
+                            $text .= "Time left: {$remaining_hours}h {$remaining_minutes}m\n";
+                        } else {
+                            $text .= "Time left: {$remaining_minutes}m\n";
+                        }
+                    } else {
+                        $text .= "⚠️ Expired\n";
+                    }
+                } else {
+                    // Try to get max_duration_hours from zone if available
+                    $max_duration_hours = 1; // Default fallback
+                    if (isset($space['zone']) && isset($space['zone']['max_duration_hours']) && $space['zone']['max_duration_hours'] > 0) {
+                        $max_duration_hours = (int)$space['zone']['max_duration_hours'];
+                    } else if (isset($space['zone_id'])) {
+                        // Load zone data from database if not in space array
+                        $zone_data = $db->getZoneBySpaceId($space['id']);
+                        if ($zone_data && isset($zone_data['max_duration_hours']) && $zone_data['max_duration_hours'] > 0) {
+                            $max_duration_hours = (int)$zone_data['max_duration_hours'];
+                        }
+                    }
+                    
+                    $reservation_timestamp = strtotime($space['reservation_time']);
+                    $estimated_end = $reservation_timestamp + ($max_duration_hours * 3600);
+                    $estimated_end_time = date('Y-m-d H:i', $estimated_end);
+                    $text .= "Expires: ~{$estimated_end_time} ({$max_duration_hours}h)\n";
+                }
             }
             if ($space['occupied_since']) {
                 $text .= "Occupied: " . date('Y-m-d H:i', strtotime($space['occupied_since'])) . "\n";

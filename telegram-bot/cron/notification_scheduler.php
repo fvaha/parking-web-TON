@@ -21,39 +21,57 @@ try {
     // Check for reservations ending in 10 minutes
     $spaces = $parking_service->getParkingSpaces();
     $now = time();
-    $warning_time = $now + (10 * 60); // 10 minutes from now
     
     foreach ($spaces as $space) {
         if ($space['status'] === 'reserved' && $space['reservation_time'] && $space['license_plate']) {
-            $reservation_timestamp = strtotime($space['reservation_time']);
-            $time_until_end = $reservation_timestamp - $now;
+            $user = $db->getTelegramUserByLicensePlate($space['license_plate']);
+            if (!$user) {
+                continue; // Skip if user not found
+            }
+            
+            // Check user preferences for reservation expiry notifications
+            $preferences = $db->getNotificationPreferences($user['telegram_user_id']);
+            // Default to enabled if preference not set
+            $notify_expiry = !isset($preferences['notify_reservation_expiry']) || $preferences['notify_reservation_expiry'] !== 0;
+            
+            if (!$notify_expiry) {
+                continue; // User disabled reservation expiry notifications
+            }
+            
+            // Use reservation_end_time if available, otherwise calculate from reservation_time + 1 hour
+            if (!empty($space['reservation_end_time'])) {
+                $end_timestamp = strtotime($space['reservation_end_time']);
+            } else {
+                // Fallback: assume 1 hour duration
+                $reservation_timestamp = strtotime($space['reservation_time']);
+                $end_timestamp = $reservation_timestamp + 3600; // 1 hour
+            }
+            
+            $time_until_end = $end_timestamp - $now;
             
             // Check if reservation ends in approximately 10 minutes (within 1 minute window)
+            // 540 seconds = 9 minutes, 660 seconds = 11 minutes
             if ($time_until_end > 540 && $time_until_end < 660) {
-                $user = $db->getTelegramUserByLicensePlate($space['license_plate']);
-                if ($user) {
-                    $message = "⏰ Reminder: Your reservation at Space #{$space['id']} ends in 10 minutes!";
-                    $notification_service->queueNotification(
-                        $user['telegram_user_id'],
-                        'reservation_ending',
-                        $message,
-                        ['parking_space_id' => $space['id']]
-                    );
-                }
+                $message = "⏰ Reminder: Your reservation at Space #{$space['id']} ends in 10 minutes!";
+                $notification_service->queueNotification(
+                    $user['telegram_user_id'],
+                    'reservation_ending',
+                    $message,
+                    ['parking_space_id' => $space['id']]
+                );
+                echo "Queued 10-minute warning for Space #{$space['id']}, user {$user['telegram_user_id']}\n";
             }
             
             // Check if reservation just ended (within last minute)
             if ($time_until_end < 0 && $time_until_end > -60) {
-                $user = $db->getTelegramUserByLicensePlate($space['license_plate']);
-                if ($user) {
-                    $message = "✅ Your reservation at Space #{$space['id']} has ended.";
-                    $notification_service->queueNotification(
-                        $user['telegram_user_id'],
-                        'reservation_ended',
-                        $message,
-                        ['parking_space_id' => $space['id']]
-                    );
-                }
+                $message = "✅ Your reservation at Space #{$space['id']} has ended.";
+                $notification_service->queueNotification(
+                    $user['telegram_user_id'],
+                    'reservation_ended',
+                    $message,
+                    ['parking_space_id' => $space['id']]
+                );
+                echo "Queued expiry notification for Space #{$space['id']}, user {$user['telegram_user_id']}\n";
             }
         }
     }

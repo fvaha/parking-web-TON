@@ -68,5 +68,26 @@ define('WALLET_PAY_API_KEY', getenv('WALLET_PAY_API_KEY') ?: '');
 
 // Timezone
 date_default_timezone_set('Europe/Belgrade');
+
+// Custom error log for Telegram bot
+$bot_log_file = __DIR__ . '/bot_errors.log';
+if (!file_exists($bot_log_file)) {
+    // Create log file if it doesn't exist
+    @touch($bot_log_file);
+    @chmod($bot_log_file, 0666);
+}
+
+// Define custom error log function for bot
+if (!function_exists('bot_log')) {
+    function bot_log($message, $context = []) {
+        global $bot_log_file;
+        $timestamp = date('Y-m-d H:i:s');
+        $context_str = !empty($context) ? ' | Context: ' . json_encode($context) : '';
+        $log_message = "[{$timestamp}] {$message}{$context_str}\n";
+        @file_put_contents($bot_log_file, $log_message, FILE_APPEND | LOCK_EX);
+        // Also log to PHP error log
+        error_log($message . $context_str);
+    }
+}
 ?>
 

@@ -33,11 +33,13 @@ class PreferencesCommand {
             // Show current preferences
             $pref_text = "🔔 Notification Preferences\n\n";
             $pref_text .= "Notify free spaces: " . ($preferences['notify_free_spaces'] ? '✅ Yes' : '❌ No') . "\n";
+            $pref_text .= "Notify reservation expiry (10 min): " . ((!isset($preferences['notify_reservation_expiry']) || $preferences['notify_reservation_expiry'] != 0) ? '✅ Yes' : '❌ No') . "\n";
             $pref_text .= "Notify specific space: " . ($preferences['notify_specific_space'] ?? 'None') . "\n";
             $pref_text .= "Notify street: " . ($preferences['notify_street'] ?? 'None') . "\n";
             $pref_text .= "Notify zone: " . ($preferences['notify_zone'] ?? 'None') . "\n\n";
             $pref_text .= "To update preferences, use:\n";
             $pref_text .= "/preferences free on|off\n";
+            $pref_text .= "/preferences expiry on|off\n";
             $pref_text .= "/preferences space <space_id>\n";
             $pref_text .= "/preferences street <street_name>\n";
             $pref_text .= "/preferences zone <zone_id>\n";
@@ -60,6 +62,11 @@ class PreferencesCommand {
             case 'free':
                 $update_data['notify_free_spaces'] = ($pref_value === 'on');
                 break;
+            case 'expiry':
+            case 'expiration':
+            case 'reservation':
+                $update_data['notify_reservation_expiry'] = ($pref_value === 'on') ? 1 : 0;
+                break;
             case 'space':
                 $update_data['notify_specific_space'] = !empty($pref_value) ? (int)$pref_value : null;
                 break;
@@ -72,7 +79,7 @@ class PreferencesCommand {
             default:
                 $bot->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => "❌ Invalid preference type. Use: free, space, street, or zone"
+                    'text' => "❌ Invalid preference type. Use: free, expiry, space, street, or zone"
                 ]);
                 return;
         }
@@ -81,6 +88,7 @@ class PreferencesCommand {
         if ($preferences) {
             $update_data = array_merge([
                 'notify_free_spaces' => $preferences['notify_free_spaces'],
+                'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1, // Default enabled
                 'notify_specific_space' => $preferences['notify_specific_space'],
                 'notify_street' => $preferences['notify_street'],
                 'notify_zone' => $preferences['notify_zone']

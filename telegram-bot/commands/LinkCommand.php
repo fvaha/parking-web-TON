@@ -22,12 +22,18 @@ class LinkCommand {
             
             // Parse command: /link username license_plate
             // Also support: /link license_plate (uses Telegram username)
+            // If just /link (from keyboard button), ask for license plate
             $parts = explode(' ', $text, 3);
             
+            // If only /link command without license plate, ask user to enter it
             if (count($parts) < 2) {
+                $link_enter_plate = LanguageService::t('link_enter_plate', $lang) ?? 
+                    "🔗 *Link Account*\n\nPlease enter your license plate number.\n\nExample: `ABC123` or `AB-123-CD`";
+                
                 $bot->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => LanguageService::t('link_invalid_format', $lang)
+                    'text' => $link_enter_plate,
+                    'parse_mode' => 'Markdown'
                 ]);
                 return;
             }

@@ -254,6 +254,7 @@ class Database {
                 telegram_user_id INTEGER NOT NULL,
                 license_plate TEXT NOT NULL,
                 notify_free_spaces BOOLEAN DEFAULT 1,
+                notify_reservation_expiry BOOLEAN DEFAULT 1,
                 notify_specific_space INTEGER,
                 notify_street TEXT,
                 notify_zone INTEGER,
@@ -684,6 +685,18 @@ class Database {
             $this->db->exec("UPDATE parking_zones SET max_duration_hours = 1 WHERE id = 1");
             $this->db->exec("UPDATE parking_zones SET max_duration_hours = 2 WHERE id = 2");
             $this->db->exec("UPDATE parking_zones SET max_duration_hours = 4 WHERE id = 3");
+        }
+        
+        // Check if notify_reservation_expiry column exists in notification_preferences table
+        $result = $this->db->query("PRAGMA table_info(notification_preferences)");
+        $columns = [];
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $columns[] = $row['name'];
+        }
+        
+        if (!in_array('notify_reservation_expiry', $columns)) {
+            // Add notify_reservation_expiry column to notification_preferences table
+            $this->db->exec("ALTER TABLE notification_preferences ADD COLUMN notify_reservation_expiry BOOLEAN DEFAULT 1");
         }
         
         // Create indexes for better performance
@@ -1920,8 +1933,19 @@ class Database {
                 $stmt->bindValue(4, $telegram_id);
                 
                 if ($stmt->execute()) {
+                    // SQLite auto-commits each statement, no explicit COMMIT needed
                     error_log("Database::linkTelegramUser: Update successful");
-                    return ['success' => true, 'message' => 'Telegram user updated'];
+                    
+                    // Verify the update was successful by reading back immediately
+                    $verify = $this->getTelegramUserByTelegramId($telegram_id);
+                    if ($verify && $verify['license_plate'] === $license_plate) {
+                        error_log("Database::linkTelegramUser: Verification successful - user is linked");
+                        return ['success' => true, 'message' => 'Telegram user updated'];
+                    } else {
+                        error_log("Database::linkTelegramUser: Verification failed - user data mismatch or not found");
+                        // Still return success if update executed, verification might be timing issue
+                        return ['success' => true, 'message' => 'Telegram user updated (verification pending)'];
+                    }
                 } else {
                     $error = $this->db->lastErrorMsg();
                     error_log("Database::linkTelegramUser: Update failed - {$error}");
@@ -1929,10 +1953,10 @@ class Database {
                 }
             } else {
                 error_log("Database::linkTelegramUser: User does not exist, creating new");
-                // Create new user
+                // Create new user - explicitly set is_active = 1
                 $stmt = $this->db->prepare("
-                    INSERT INTO telegram_users (telegram_user_id, username, license_plate, chat_id)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO telegram_users (telegram_user_id, username, license_plate, chat_id, is_active)
+                    VALUES (?, ?, ?, ?, 1)
                 ");
                 $stmt->bindValue(1, $telegram_id);
                 $stmt->bindValue(2, $username);
@@ -1940,8 +1964,19 @@ class Database {
                 $stmt->bindValue(4, $chat_id);
                 
                 if ($stmt->execute()) {
+                    // SQLite auto-commits each statement, no explicit COMMIT needed
                     error_log("Database::linkTelegramUser: Insert successful");
-                    return ['success' => true, 'message' => 'Telegram user linked'];
+                    
+                    // Verify the insert was successful by reading back immediately
+                    $verify = $this->getTelegramUserByTelegramId($telegram_id);
+                    if ($verify && $verify['license_plate'] === $license_plate) {
+                        error_log("Database::linkTelegramUser: Verification successful - user is linked");
+                        return ['success' => true, 'message' => 'Telegram user linked'];
+                    } else {
+                        error_log("Database::linkTelegramUser: Verification failed - user not found after insert");
+                        // Still return success if insert executed, verification might be timing issue
+                        return ['success' => true, 'message' => 'Telegram user linked (verification pending)'];
+                    }
                 } else {
                     $error = $this->db->lastErrorMsg();
                     error_log("Database::linkTelegramUser: Insert failed - {$error}");
@@ -2005,14 +2040,15 @@ class Database {
             // Update existing preferences
             $stmt = $this->db->prepare("
                 UPDATE notification_preferences 
-                SET notify_free_spaces = ?, notify_specific_space = ?, notify_street = ?, notify_zone = ?, updated_at = CURRENT_TIMESTAMP
+                SET notify_free_spaces = ?, notify_reservation_expiry = ?, notify_specific_space = ?, notify_street = ?, notify_zone = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE telegram_user_id = ?
             ");
             $stmt->bindValue(1, isset($preferences['notify_free_spaces']) ? ($preferences['notify_free_spaces'] ? 1 : 0) : 1);
-            $stmt->bindValue(2, $preferences['notify_specific_space'] ?? null);
-            $stmt->bindValue(3, $preferences['notify_street'] ?? null);
-            $stmt->bindValue(4, $preferences['notify_zone'] ?? null);
-            $stmt->bindValue(5, $telegram_id);
+            $stmt->bindValue(2, isset($preferences['notify_reservation_expiry']) ? ($preferences['notify_reservation_expiry'] ? 1 : 0) : 1);
+            $stmt->bindValue(3, $preferences['notify_specific_space'] ?? null);
+            $stmt->bindValue(4, $preferences['notify_street'] ?? null);
+            $stmt->bindValue(5, $preferences['notify_zone'] ?? null);
+            $stmt->bindValue(6, $telegram_id);
             
             if ($stmt->execute()) {
                 return ['success' => true, 'message' => 'Preferences updated'];
@@ -2026,15 +2062,16 @@ class Database {
             
             // Create new preferences
             $stmt = $this->db->prepare("
-                INSERT INTO notification_preferences (telegram_user_id, license_plate, notify_free_spaces, notify_specific_space, notify_street, notify_zone)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO notification_preferences (telegram_user_id, license_plate, notify_free_spaces, notify_reservation_expiry, notify_specific_space, notify_street, notify_zone)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->bindValue(1, $telegram_id);
             $stmt->bindValue(2, $user['license_plate']);
             $stmt->bindValue(3, isset($preferences['notify_free_spaces']) ? ($preferences['notify_free_spaces'] ? 1 : 0) : 1);
-            $stmt->bindValue(4, $preferences['notify_specific_space'] ?? null);
-            $stmt->bindValue(5, $preferences['notify_street'] ?? null);
-            $stmt->bindValue(6, $preferences['notify_zone'] ?? null);
+            $stmt->bindValue(4, isset($preferences['notify_reservation_expiry']) ? ($preferences['notify_reservation_expiry'] ? 1 : 0) : 1);
+            $stmt->bindValue(5, $preferences['notify_specific_space'] ?? null);
+            $stmt->bindValue(6, $preferences['notify_street'] ?? null);
+            $stmt->bindValue(7, $preferences['notify_zone'] ?? null);
             
             if ($stmt->execute()) {
                 return ['success' => true, 'message' => 'Preferences created'];

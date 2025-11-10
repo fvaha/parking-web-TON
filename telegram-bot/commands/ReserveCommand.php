@@ -27,14 +27,24 @@ class ReserveCommand {
             return;
         }
         
-        // Parse command: /reserve <space_id> (legacy support) or just /reserve (new interactive)
+        // Parse command: /reserve (always show interactive menu)
+        // Legacy support removed - always show streets list
         $parts = explode(' ', $text, 2);
         if (count($parts) >= 2) {
-            // Legacy: /reserve <space_id>
-            $space_id = (int)trim($parts[1]);
-            $this->reserveSpaceById($bot, $chat_id, $parking_service, $space_id, $user_data, $lang);
+            $space_id_param = trim($parts[1]);
+            // If space_id is provided and valid, use it; otherwise show streets
+            if (!empty($space_id_param) && is_numeric($space_id_param) && (int)$space_id_param > 0) {
+                $space_id = (int)$space_id_param;
+                error_log("ReserveCommand: Legacy format with space_id={$space_id}");
+                $this->reserveSpaceById($bot, $chat_id, $parking_service, $space_id, $user_data, $lang);
+            } else {
+                // Invalid or empty space_id - show streets list
+                error_log("ReserveCommand: Invalid space_id parameter '{$space_id_param}', showing streets list");
+                $this->showStreetsForReservation($bot, $chat_id, $parking_service, $lang);
+            }
         } else {
-            // New: Show streets list with inline keyboard
+            // No parameters - show streets list with inline keyboard
+            error_log("ReserveCommand: No parameters, showing streets list");
             $this->showStreetsForReservation($bot, $chat_id, $parking_service, $lang);
         }
     }
@@ -135,7 +145,7 @@ class ReserveCommand {
         ]);
     }
     
-    private function reserveSpaceById($bot, $chat_id, $parking_service, $space_id, $user_data, $lang) {
+    public function reserveSpaceById($bot, $chat_id, $parking_service, $space_id, $user_data, $lang) {
         $space = $parking_service->getSpaceById($space_id);
         
         if (!$space) {
@@ -163,31 +173,45 @@ class ReserveCommand {
         $db = $db_service->getDatabase();
         $zone = $db->getZoneBySpaceId($space_id);
         
+        // Check if premium zone (same as web app: api/parking-spaces.php line 90)
         $is_premium = false;
-        if ($zone && isset($zone['is_premium'])) {
-            // Check if is_premium is 1, true, or '1'
-            $is_premium = ($zone['is_premium'] == 1 || $zone['is_premium'] === true || $zone['is_premium'] === '1');
-            error_log("ReserveCommand: Zone found for space {$space_id}, is_premium: " . var_export($zone['is_premium'], true) . ", result: " . ($is_premium ? 'true' : 'false'));
-        } elseif (isset($space['zone']) && isset($space['zone']['is_premium'])) {
+        if ($zone && $zone['is_premium'] == 1) {
+            $is_premium = true;
+            error_log("ReserveCommand: Zone found for space {$space_id}, is_premium: 1 (premium zone)");
+        } elseif (isset($space['zone']) && $space['zone']['is_premium'] == 1) {
             // Fallback to space zone data
-            $is_premium = ($space['zone']['is_premium'] == 1 || $space['zone']['is_premium'] === true || $space['zone']['is_premium'] === '1');
-            error_log("ReserveCommand: Using space zone data for space {$space_id}, is_premium: " . var_export($space['zone']['is_premium'], true) . ", result: " . ($is_premium ? 'true' : 'false'));
+            $is_premium = true;
+            error_log("ReserveCommand: Using space zone data for space {$space_id}, is_premium: 1 (premium zone)");
         } else {
-            error_log("ReserveCommand: No zone found for space {$space_id}, allowing free reservation");
+            error_log("ReserveCommand: No premium zone found for space {$space_id}, allowing free reservation");
         }
         
         if ($is_premium) {
             // Premium zone requires payment - show payment options
             // Ensure zone data is in space array
             if (!isset($space['zone']) && $zone) {
+                if (!isset($zone['name']) || !isset($zone['hourly_rate'])) {
+                    error_log("ReserveCommand: Zone data incomplete for space {$space_id}: " . json_encode($zone));
+                    $bot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+                    ]);
+                    return;
+                }
                 $space['zone'] = [
                     'id' => $zone['id'],
-                    'name' => $zone['name'] ?? 'Premium Zone',
+                    'name' => $zone['name'],
                     'is_premium' => true,
-                    'hourly_rate' => $zone['hourly_rate'] ?? 2.0
+                    'hourly_rate' => (float)$zone['hourly_rate']
                 ];
             }
             error_log("ReserveCommand: Premium zone detected for space {$space_id}, showing payment options");
+            // Ensure space has id
+            if (!isset($space['id']) || empty($space['id'])) {
+                $space['id'] = $space_id;
+                error_log("ReserveCommand: Added space_id to space array: {$space_id}");
+            }
+            error_log("ReserveCommand: Space data before showPaymentOptions: " . json_encode(['id' => $space['id'] ?? 'MISSING', 'status' => $space['status'] ?? 'MISSING']));
             $this->showPaymentOptions($bot, $chat_id, $space, $user_data, $lang);
             return;
         }
@@ -198,12 +222,39 @@ class ReserveCommand {
         $success = $parking_service->reserveSpace($space_id, $user_data['license_plate']);
         
         if ($success) {
+            // Get space again to check for reservation_end_time
+            $reserved_space = $parking_service->getSpaceById($space_id);
+            $duration_text = "";
+            
+            if ($reserved_space && !empty($reserved_space['reservation_end_time'])) {
+                $end_time = date('Y-m-d H:i', strtotime($reserved_space['reservation_end_time']));
+                $reservation_time = strtotime($reserved_space['reservation_time']);
+                $end_timestamp = strtotime($reserved_space['reservation_end_time']);
+                $duration_hours = round(($end_timestamp - $reservation_time) / 3600, 1);
+                $duration_text = "\n\nDuration: {$duration_hours}h\nExpires: {$end_time}";
+                } else {
+                    // Get max_duration_hours from zone if available
+                    $max_duration_hours = 1; // Default fallback
+                    if (isset($space['zone']) && isset($space['zone']['max_duration_hours']) && $space['zone']['max_duration_hours'] > 0) {
+                        $max_duration_hours = (int)$space['zone']['max_duration_hours'];
+                    } else {
+                        // Load zone data from database if not in space array
+                        $db_service = new DatabaseService();
+                        $db = $db_service->getDatabase();
+                        $zone_data = $db->getZoneBySpaceId($space_id);
+                        if ($zone_data && isset($zone_data['max_duration_hours']) && $zone_data['max_duration_hours'] > 0) {
+                            $max_duration_hours = (int)$zone_data['max_duration_hours'];
+                        }
+                    }
+                    $duration_text = "\n\nDuration: {$max_duration_hours}h (default)";
+                }
+            
             $bot->sendMessage([
                 'chat_id' => $chat_id,
                 'text' => LanguageService::t('reserve_success', $lang, [
                     'space_id' => $space_id,
                     'license_plate' => $user_data['license_plate']
-                ])
+                ]) . $duration_text
             ]);
         } else {
             // Get more detailed error message
@@ -221,14 +272,51 @@ class ReserveCommand {
     }
     
     private function showPaymentOptions($bot, $chat_id, $space, $user_data, $lang) {
-        $zone = $space['zone'];
-        $hourly_rate = $zone['hourly_rate'] ?? 2.0;
+        $space_id = isset($space['id']) ? (int)$space['id'] : 0;
+        
+        // Validate space_id
+        if (empty($space_id) || $space_id <= 0) {
+            error_log("showPaymentOptions: Invalid space_id from space array: " . json_encode($space));
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        // Always load zone data from database
+        $db_service = new DatabaseService();
+        $db = $db_service->getDatabase();
+        $zone_data = $db->getZoneBySpaceId($space_id);
+        
+        if (!$zone_data || !isset($zone_data['hourly_rate'])) {
+            error_log("showPaymentOptions: Zone data not found for space_id: {$space_id}");
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        if (!isset($zone_data['name']) || !isset($zone_data['hourly_rate'])) {
+            error_log("showPaymentOptions: Zone data incomplete for space_id: {$space_id}");
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        $zone_name = $zone_data['name'];
+        $hourly_rate = (float)$zone_data['hourly_rate'];
         $amount_ton = $hourly_rate;
-        $space_id = $space['id'];
+        
         $has_wallet = !empty($user_data['ton_wallet_address']);
         
+        error_log("showPaymentOptions: space_id={$space_id}, zone_name={$zone_name}, amount_ton={$amount_ton}");
+        
         $text = LanguageService::t('reserve_payment_options', $lang, [
-            'zone_name' => $zone['name'],
+            'zone_name' => $zone_name,
             'space_id' => $space_id,
             'amount_ton' => $amount_ton
         ]);
@@ -238,19 +326,23 @@ class ReserveCommand {
         ];
         
         // Always show Telegram Stars option (easiest)
+        $stars_callback = "payment_stars:{$space_id}";
+        error_log("showPaymentOptions: Creating stars callback: '{$stars_callback}'");
         $keyboard['inline_keyboard'][] = [
             [
                 'text' => LanguageService::t('payment_option_stars', $lang),
-                'callback_data' => "payment_stars:{$space_id}"
+                'callback_data' => $stars_callback
             ]
         ];
         
         // Show TON wallet option if user has wallet, or setup option if not
         if ($has_wallet) {
+            $ton_callback = "payment_ton:{$space_id}";
+            error_log("showPaymentOptions: Creating TON callback: '{$ton_callback}'");
             $keyboard['inline_keyboard'][] = [
                 [
                     'text' => LanguageService::t('payment_option_ton', $lang),
-                    'callback_data' => "payment_ton:{$space_id}"
+                    'callback_data' => $ton_callback
                 ]
             ];
         } else {
@@ -278,10 +370,43 @@ class ReserveCommand {
     }
     
     private function showPaymentInstructions($bot, $chat_id, $space, $user_data, $lang) {
-        $zone = $space['zone'];
-        $hourly_rate = $zone['hourly_rate'] ?? 2.0;
+        $space_id = isset($space['id']) ? (int)$space['id'] : 0;
+        
+        if (empty($space_id) || $space_id <= 0) {
+            error_log("showPaymentInstructions: Invalid space_id from space array: " . json_encode($space));
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        // Always load zone data from database
+        $db_service = new DatabaseService();
+        $db = $db_service->getDatabase();
+        $zone_data = $db->getZoneBySpaceId($space_id);
+        
+        if (!$zone_data || !isset($zone_data['hourly_rate'])) {
+            error_log("showPaymentInstructions: Zone data not found for space_id: {$space_id}");
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        if (!isset($zone_data['name']) || !isset($zone_data['hourly_rate'])) {
+            error_log("showPaymentOptions: Zone data incomplete for space_id: {$space_id}");
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        $zone_name = $zone_data['name'];
+        $hourly_rate = (float)$zone_data['hourly_rate'];
         $amount_ton = $hourly_rate;
-        $space_id = $space['id'];
         
         // Use Telegram Stars for payment
         require_once __DIR__ . '/../services/TelegramStarsService.php';
@@ -291,7 +416,7 @@ class ReserveCommand {
         $result = $stars_service->sendInvoice(
             $chat_id,
             $space_id,
-            $zone['name'],
+            $zone_name,
             $amount_ton,
             $user_data['license_plate'],
             $lang
@@ -318,11 +443,93 @@ class ReserveCommand {
     }
     
     private function showTonPaymentInstructions($bot, $chat_id, $space, $user_data, $lang) {
-        $zone = $space['zone'];
-        $hourly_rate = $zone['hourly_rate'] ?? 2.0;
-        $amount_ton = $hourly_rate;
-        $space_id = $space['id'];
+        error_log("showTonPaymentInstructions: Called with space data - " . json_encode(['id' => $space['id'] ?? 'MISSING', 'status' => $space['status'] ?? 'MISSING', 'zone' => isset($space['zone']) ? 'SET' : 'MISSING']));
+        if (function_exists('bot_log')) {
+            bot_log("showTonPaymentInstructions: Called", ['space_id' => $space['id'] ?? 'MISSING', 'space_status' => $space['status'] ?? 'MISSING', 'has_zone' => isset($space['zone'])]);
+        }
         
+        // Get space_id from space array or use zone data that was already loaded
+        $space_id = isset($space['id']) ? (int)$space['id'] : 0;
+        if (empty($space_id) || $space_id <= 0) {
+            $error_msg = "showTonPaymentInstructions: Invalid space_id from space array: " . json_encode($space);
+            error_log($error_msg);
+            if (function_exists('bot_log')) {
+                bot_log($error_msg, ['space' => $space]);
+            }
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        // Zone data should already be loaded in handlePaymentMethodSelection
+        // But if not, load it from database (same as web app: api/parking-spaces.php line 88)
+        $zone_data = null;
+        if (isset($space['zone']) && isset($space['zone']['name']) && isset($space['zone']['hourly_rate'])) {
+            // Use zone data from space array if available
+            $zone_data = [
+                'name' => $space['zone']['name'],
+                'hourly_rate' => $space['zone']['hourly_rate']
+            ];
+            error_log("showTonPaymentInstructions: Using zone data from space array for space_id {$space_id}");
+        } else {
+            // Load zone data from database
+            $db_service = new DatabaseService();
+            $db = $db_service->getDatabase();
+            $zone_data = $db->getZoneBySpaceId($space_id);
+            error_log("showTonPaymentInstructions: Loaded zone data from database for space_id {$space_id}: " . json_encode($zone_data));
+        }
+        
+        // Check zone data same way as web app (api/parking-spaces.php line 90)
+        if (!$zone_data) {
+            $error_msg = "showTonPaymentInstructions: Zone data not found for space_id: {$space_id}";
+            error_log($error_msg);
+            if (function_exists('bot_log')) {
+                bot_log($error_msg, ['space_id' => $space_id]);
+            }
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        // Validate zone data (same as web app expects)
+        if (!isset($zone_data['name']) || empty($zone_data['name'])) {
+            $error_msg = "showTonPaymentInstructions: Zone name missing for space_id: {$space_id}";
+            error_log($error_msg);
+            if (function_exists('bot_log')) {
+                bot_log($error_msg, ['space_id' => $space_id, 'zone_data' => $zone_data]);
+            }
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        if (!isset($zone_data['hourly_rate']) || $zone_data['hourly_rate'] === null) {
+            $error_msg = "showTonPaymentInstructions: Zone hourly_rate missing for space_id: {$space_id}";
+            error_log($error_msg);
+            if (function_exists('bot_log')) {
+                bot_log($error_msg, ['space_id' => $space_id, 'zone_data' => $zone_data]);
+            }
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        $zone_name = $zone_data['name'];
+        $hourly_rate = (float)$zone_data['hourly_rate'];
+        $amount_ton = $hourly_rate;
+        $wallet_address = $user_data['ton_wallet_address'] ?? '';
+        
+        error_log("showTonPaymentInstructions: Processing payment for space_id={$space_id}, amount_ton={$amount_ton}, zone_name={$zone_name}");
+        
+        // Note: Balance check is done in handlePaymentMethodSelection before calling this method
         // Use Telegram Bot API invoice for TON payment
         require_once __DIR__ . '/../services/TelegramStarsService.php';
         $payment_service = new \TelegramBot\Services\TelegramStarsService();
@@ -331,7 +538,7 @@ class ReserveCommand {
         $result = $payment_service->sendTonInvoice(
             $chat_id,
             $space_id,
-            $zone['name'],
+            $zone_name,
             $amount_ton,
             $user_data['license_plate'],
             $lang
@@ -358,8 +565,10 @@ class ReserveCommand {
     }
     
     public function handlePaymentMethodSelection($bot, $chat_id, $parking_service, $space_id, $payment_method, $user_data, $lang) {
-        $space = $parking_service->getSpaceById($space_id);
-        if (!$space || !isset($space['zone']) || !$space['zone']['is_premium']) {
+        error_log("handlePaymentMethodSelection: space_id={$space_id}, payment_method={$payment_method}");
+        
+        if (empty($space_id) || $space_id <= 0) {
+            error_log("handlePaymentMethodSelection: Invalid space_id: {$space_id}");
             $bot->sendMessage([
                 'chat_id' => $chat_id,
                 'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
@@ -367,21 +576,191 @@ class ReserveCommand {
             return;
         }
         
+        $space = $parking_service->getSpaceById($space_id);
+        if (!$space) {
+            error_log("handlePaymentMethodSelection: Space not found for space_id: {$space_id}");
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        // Ensure space has id field
+        if (!isset($space['id']) || empty($space['id'])) {
+            $space['id'] = $space_id;
+            error_log("handlePaymentMethodSelection: Added space_id to space array: {$space_id}");
+        }
+        
+        $space_status = isset($space['status']) ? $space['status'] : 'N/A';
+        error_log("handlePaymentMethodSelection: Space found - id={$space['id']}, status={$space_status}");
+        
+        // Ensure space has zone data - try to load from database if missing (same as web app)
+        if (!isset($space['zone'])) {
+            error_log("handlePaymentMethodSelection: Space {$space_id} has no zone data. Loading from database...");
+            $db_service = new DatabaseService();
+            $db = $db_service->getDatabase();
+            $zone = $db->getZoneBySpaceId($space_id);
+            
+            if ($zone) {
+                if (!isset($zone['name']) || !isset($zone['hourly_rate'])) {
+                    error_log("handlePaymentMethodSelection: Zone data incomplete from database for space_id: {$space_id}");
+                    $bot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+                    ]);
+                    return;
+                }
+                error_log("handlePaymentMethodSelection: Zone found in database: " . json_encode($zone));
+                // Check is_premium same way as web app (api/parking-spaces.php line 90)
+                $is_premium = ($zone['is_premium'] == 1);
+                $space['zone'] = [
+                    'id' => (string)$zone['id'],
+                    'name' => $zone['name'],
+                    'is_premium' => $is_premium,
+                    'hourly_rate' => (float)$zone['hourly_rate']
+                ];
+                error_log("handlePaymentMethodSelection: Zone loaded and added to space: " . json_encode($space['zone']));
+            } else {
+                // No zone found - space is not in any zone (same as web app - allows reservation without payment)
+                error_log("handlePaymentMethodSelection: No zone found for space {$space_id} - space is not in a zone, but allowing payment anyway");
+                $space['zone'] = null;
+            }
+        } else {
+            error_log("handlePaymentMethodSelection: Space {$space_id} already has zone data: " . json_encode($space['zone']));
+        }
+        
+        // Log final zone data for debugging
+        error_log("handlePaymentMethodSelection: Final zone data for space {$space_id}: " . json_encode($space['zone'] ?? 'null'));
+        
+        // Check if this is a premium zone (same as web app: api/parking-spaces.php line 90)
+        // Only premium zones require payment verification, but we allow payment for all zones
+        $is_premium = false;
+        if ($space['zone'] && $space['zone']['is_premium'] == 1) {
+            $is_premium = true;
+            error_log("handlePaymentMethodSelection: Zone is_premium: 1 (premium zone)");
+        } else {
+            error_log("handlePaymentMethodSelection: No premium zone - allowing payment anyway");
+        }
+        
+        error_log("handlePaymentMethodSelection: Space {$space_id} is valid, proceeding with payment method: {$payment_method}");
+        
         if ($payment_method === 'stars') {
             // Use Telegram Stars
             $this->showPaymentInstructions($bot, $chat_id, $space, $user_data, $lang);
         } elseif ($payment_method === 'ton') {
+            // Always load zone data from database (same as web app: api/parking-spaces.php line 88)
+            $db_service = new DatabaseService();
+            $db = $db_service->getDatabase();
+            $zone_data = $db->getZoneBySpaceId($space_id);
+            
+            error_log("handlePaymentMethodSelection: Zone data for space_id {$space_id}: " . json_encode($zone_data));
+            if (function_exists('bot_log')) {
+                bot_log("handlePaymentMethodSelection: Zone data for space_id {$space_id}", ['zone_data' => $zone_data]);
+            }
+            
+            // Check zone data same way as web app (api/parking-spaces.php line 90)
+            if (!$zone_data) {
+                $error_msg = "handlePaymentMethodSelection: Zone data not found for space_id: {$space_id} (space is not in any zone)";
+                error_log($error_msg);
+                if (function_exists('bot_log')) {
+                    bot_log($error_msg, ['space_id' => $space_id]);
+                }
+                $bot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                return;
+            }
+            
+            // Validate zone data (same as web app expects)
+            if (!isset($zone_data['name']) || empty($zone_data['name'])) {
+                $error_msg = "handlePaymentMethodSelection: Zone name missing for space_id: {$space_id}";
+                error_log($error_msg);
+                if (function_exists('bot_log')) {
+                    bot_log($error_msg, ['space_id' => $space_id, 'zone_data' => $zone_data]);
+                }
+                $bot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                return;
+            }
+            
+            if (!isset($zone_data['hourly_rate']) || $zone_data['hourly_rate'] === null) {
+                $error_msg = "handlePaymentMethodSelection: Zone hourly_rate missing for space_id: {$space_id}";
+                error_log($error_msg);
+                if (function_exists('bot_log')) {
+                    bot_log($error_msg, ['space_id' => $space_id, 'zone_data' => $zone_data]);
+                }
+                $bot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+                ]);
+                return;
+            }
+            
+            $zone_name = $zone_data['name'];
+            $hourly_rate = (float)$zone_data['hourly_rate'];
+            $amount_ton = $hourly_rate;
+            
             // Use TON wallet
             if (empty($user_data['ton_wallet_address'])) {
                 $bot->sendMessage([
                     'chat_id' => $chat_id,
                     'text' => LanguageService::t('reserve_premium_no_wallet', $lang, [
-                        'zone_name' => $space['zone']['name'],
-                        'hourly_rate' => $space['zone']['hourly_rate']
+                        'zone_name' => $zone_name,
+                        'hourly_rate' => $hourly_rate
                     ])
                 ]);
                 return;
             }
+            
+            // Check and show wallet balance before showing payment instructions
+            $wallet_address = $user_data['ton_wallet_address'];
+            
+            require_once __DIR__ . '/../services/TonPaymentService.php';
+            $ton_service = new \TelegramBot\Services\TonPaymentService();
+            
+            error_log("Checking wallet balance before payment: {$wallet_address}");
+            $balance_result = $ton_service->checkWalletBalance($wallet_address);
+            
+            if ($balance_result['success']) {
+                $balance_ton = $balance_result['balance_ton'];
+                error_log("Wallet balance: {$balance_ton} TON, Required: {$amount_ton} TON");
+                
+                // Always show balance info before payment
+                $balance_info = LanguageService::t('wallet_balance_info', $lang, [
+                    'balance_ton' => number_format($balance_ton, 3),
+                    'required_ton' => $amount_ton
+                ]);
+                
+                $bot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => $balance_info,
+                    'parse_mode' => 'Markdown'
+                ]);
+                
+                // Check if user has enough balance
+                if ($balance_ton < $amount_ton) {
+                    $balance_text = LanguageService::t('wallet_insufficient_balance', $lang, [
+                        'balance_ton' => number_format($balance_ton, 3),
+                        'required_ton' => $amount_ton,
+                        'zone_name' => $zone_name
+                    ]);
+                    
+                    $bot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => $balance_text,
+                        'parse_mode' => 'Markdown'
+                    ]);
+                    return;
+                }
+            } else {
+                // Could not check balance, but continue with payment attempt
+                error_log("Could not check wallet balance: " . ($balance_result['error'] ?? 'Unknown error'));
+            }
+            
             $this->showTonPaymentInstructions($bot, $chat_id, $space, $user_data, $lang);
         }
     }
@@ -390,7 +769,8 @@ class ReserveCommand {
         require_once __DIR__ . '/../config.php';
         
         $space = $parking_service->getSpaceById($space_id);
-        if (!$space || !isset($space['zone']) || !$space['zone']['is_premium']) {
+        if (!$space) {
+            error_log("handlePaymentVerification: Space {$space_id} not found");
             $bot->sendMessage([
                 'chat_id' => $chat_id,
                 'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
@@ -398,7 +778,24 @@ class ReserveCommand {
             return;
         }
         
-        $hourly_rate = $space['zone']['hourly_rate'] ?? 2.0;
+        // Always load zone data from database for payment verification
+        $db_service = new DatabaseService();
+        $db = $db_service->getDatabase();
+        $zone_data = $db->getZoneBySpaceId($space_id);
+        
+        if (!$zone_data || !isset($zone_data['name']) || !isset($zone_data['hourly_rate'])) {
+            error_log("handlePaymentVerification: Zone data not found or incomplete for space_id: {$space_id}");
+            $bot->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => LanguageService::t('reserve_payment_invalid_space', $lang)
+            ]);
+            return;
+        }
+        
+        $zone_name = $zone_data['name'];
+        $hourly_rate = (float)$zone_data['hourly_rate'];
+        
+        error_log("handlePaymentVerification: Verifying payment for space {$space_id}, zone: {$zone_name}, hourly_rate: {$hourly_rate}");
         $amount_nano = (int)($hourly_rate * 1000000000);
         
         // Show "verifying" message
@@ -507,13 +904,40 @@ class ReserveCommand {
         $success = $parking_service->reserveSpace($space_id, $user_data['license_plate'], $verified_tx_hash);
         
         if ($success) {
+            // Get space again to check for reservation_end_time
+            $reserved_space = $parking_service->getSpaceById($space_id);
+            $duration_text = "";
+            
+            if ($reserved_space && !empty($reserved_space['reservation_end_time'])) {
+                $end_time = date('Y-m-d H:i', strtotime($reserved_space['reservation_end_time']));
+                $reservation_time = strtotime($reserved_space['reservation_time']);
+                $end_timestamp = strtotime($reserved_space['reservation_end_time']);
+                $duration_hours = round(($end_timestamp - $reservation_time) / 3600, 1);
+                $duration_text = "\n\nDuration: *{$duration_hours}h*\nExpires: *{$end_time}*";
+                } else {
+                    // Get max_duration_hours from zone if available
+                    $max_duration_hours = 1; // Default fallback
+                    if (isset($reserved_space['zone']) && isset($reserved_space['zone']['max_duration_hours']) && $reserved_space['zone']['max_duration_hours'] > 0) {
+                        $max_duration_hours = (int)$reserved_space['zone']['max_duration_hours'];
+                    } else {
+                        // Load zone data from database if not in space array
+                        $db_service = new DatabaseService();
+                        $db = $db_service->getDatabase();
+                        $zone_data = $db->getZoneBySpaceId($space_id);
+                        if ($zone_data && isset($zone_data['max_duration_hours']) && $zone_data['max_duration_hours'] > 0) {
+                            $max_duration_hours = (int)$zone_data['max_duration_hours'];
+                        }
+                    }
+                    $duration_text = "\n\nDuration: *{$max_duration_hours}h* (default)";
+                }
+            
             $bot->sendMessage([
                 'chat_id' => $chat_id,
                 'text' => LanguageService::t('reserve_success_premium', $lang, [
                     'space_id' => $space_id,
                     'license_plate' => $user_data['license_plate'],
                     'amount_ton' => $hourly_rate
-                ]),
+                ]) . $duration_text,
                 'parse_mode' => 'Markdown'
             ]);
         } else {
