@@ -1,0 +1,615 @@
+/* HEADER STYLES - CLEAN AND SIMPLE */
+.main-header {
+  background: transparent !important;
+  color: black !important;
+  position: relative !important;
+  overflow: visible !important;
+  min-height: 140px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transition: min-height 0.3s ease !important;
+  z-index: 1 !important;
+}
+
+/* COLLAPSED HEADER STYLES */
+.main-header.collapsed-header {
+  min-height: 60px !important;
+}
+
+.collapsed-content {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+.header-content {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0.75rem 1rem 0 1rem !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  z-index: 2 !important;
+  gap: 0.4rem !important;
+  justify-content: space-between !important;
+  pointer-events: none !important;
+  overflow: visible !important;
+}
+
+.header-content > * {
+  pointer-events: auto !important;
+}
+
+/* Ensure buttons outside header-content are clickable */
+.main-header button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 2147483647 !important;
+}
+
+.main-header > div[style*="pointerEvents"] button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 2147483647 !important;
+}
+
+/* Ensure all buttons in header are clickable */
+.main-header button,
+.main-header .language-btn,
+.main-header .license-change-btn,
+.main-header button[class*="language"],
+.main-header button[class*="telegram"],
+.main-header button[class*="collapse"],
+.main-header button[class*="expand"] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 2147483647 !important;
+  touch-action: manipulation !important;
+}
+
+/* Ensure divs containing buttons are also clickable */
+.main-header > div[style*="zIndex"] {
+  pointer-events: auto !important;
+}
+
+.main-header > div[style*="zIndex"] button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* TOP ROW - APP TITLE AND LANGUAGE SWITCHER */
+.header-top-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  z-index: 3 !important;
+  flex-shrink: 0 !important;
+}
+
+/* MIDDLE ROW - LICENSE PLATE AND CHANGE ICON */
+.header-middle-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  z-index: 3 !important;
+  flex-shrink: 0 !important;
+}
+
+/* WEATHER ROW - HORIZONTAL BELOW LICENSE PLATE */
+.header-weather-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0.5rem 0 0 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  z-index: 3 !important;
+  flex-shrink: 0 !important;
+}
+
+/* APP TITLE */
+.header-app-name h1 {
+  color: black !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 2.5rem !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.9) !important;
+}
+
+/* LANGUAGE SECTION */
+.header-language-section {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  position: relative !important;
+  z-index: 999999999 !important;
+}
+
+/* Language selector container */
+.language-selector {
+  position: relative !important;
+}
+
+/* Language button - enhanced liquid glass style */
+.language-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.3rem !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 12px !important;
+  padding: 0.4rem 0.7rem !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+  z-index: 999999999 !important;
+  color: #333 !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  min-width: 65px !important;
+  justify-content: center !important;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37), 0 4px 16px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.language-btn::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;
+  transition: left 0.5s ease !important;
+}
+
+.language-btn:hover::before {
+  left: 100% !important;
+}
+
+.language-btn:hover {
+  background: rgba(255, 255, 255, 0.8) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.4), 0 6px 20px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.language-btn span {
+  font-weight: 600 !important;
+  color: #333 !important;
+  text-transform: uppercase !important;
+}
+
+.language-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+  color: #333 !important;
+}
+
+/* LICENSE PLATE SECTION */
+.header-license-section {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: 300px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* License plate container - enhanced liquid glass style */
+.header-license-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  padding: 0.6rem 1rem !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37), 0 4px 16px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.header-license-container::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent) !important;
+  transition: left 0.8s ease !important;
+}
+
+.header-license-container:hover::before {
+  left: 100% !important;
+}
+
+.license-plate {
+  font-size: 1.2rem !important;
+  font-weight: bold !important;
+  color: #333 !important;
+  text-align: center !important;
+  min-width: 120px !important;
+}
+
+/* License change button */
+.license-change-btn {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 12px !important;
+  padding: 0.5rem !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: 36px !important;
+  backdrop-filter: blur(15px) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+  box-shadow: 0 4px 16px rgba(31, 38, 135, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.license-change-btn::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;
+  transition: left 0.4s ease !important;
+}
+
+.license-change-btn:hover::before {
+  left: 100% !important;
+}
+
+.license-change-btn:hover {
+  background: rgba(255, 255, 255, 0.5) !important;
+  transform: scale(1.05) !important;
+  box-shadow: 0 6px 20px rgba(31, 38, 135, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.license-change-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  color: #333 !important;
+}
+
+/* WEATHER SECTION - HORIZONTAL LAYOUT */
+.header-weather-section {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 3 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+.weather-info-horizontal {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1.5rem !important;
+  padding: 0.5rem 1rem !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(31, 38, 135, 0.1) !important;
+  backdrop-filter: blur(15px) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+  min-width: fit-content !important;
+}
+
+.weather-item-horizontal {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  color: #1a1a1a !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.weather-icon-svg {
+  flex-shrink: 0 !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1)) !important;
+}
+
+.weather-value-horizontal {
+  font-weight: 600 !important;
+  text-shadow: none !important;
+}
+
+/* Weather Loading and Error States */
+.weather-loading,
+.weather-error {
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: #666 !important;
+  text-align: center !important;
+  padding: 0.5rem !important;
+}
+
+.weather-error {
+  color: #dc3545 !important;
+}
+
+/* LANGUAGE DROPDOWN MENU - Highest z-index */
+.language-menu-portal {
+  position: absolute !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(31, 38, 135, 0.4), 0 8px 32px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  padding: 0.25rem 0 !important;
+  min-width: 120px !important;
+  z-index: 2147483647 !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  max-height: 250px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  /* Ensure it's above everything */
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+  /* Force new stacking context */
+  isolation: isolate !important;
+  /* Additional CSS properties to ensure it's on top */
+  contain: layout style paint !important;
+  transform-style: preserve-3d !important;
+  perspective: 1000px !important;
+}
+
+/* Force language dropdown to be above everything - Global override */
+body .language-menu-portal,
+* .language-menu-portal,
+.language-menu-portal {
+  z-index: 2147483647 !important;
+  position: absolute !important;
+  isolation: isolate !important;
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+  contain: layout style paint !important;
+  transform-style: preserve-3d !important;
+  perspective: 1000px !important;
+}
+
+/* Additional high specificity override to ensure dropdown is above everything */
+html body .header-language-section .language-selector .language-menu-portal,
+html body .language-menu-portal,
+html .language-menu-portal {
+  z-index: 2147483647 !important;
+  position: absolute !important;
+  isolation: isolate !important;
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+  contain: layout style paint !important;
+  transform-style: preserve-3d !important;
+  perspective: 1000px !important;
+  /* Force it to be above all other elements */
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Ensure other elements don't interfere with the dropdown */
+.header-license-section,
+.header-weather-section,
+.header-middle-row,
+.header-bottom-row {
+  z-index: 1 !important;
+}
+
+/* Force the language section to have the highest z-index */
+.header-language-section {
+  z-index: 2147483647 !important;
+  position: relative !important;
+}
+
+.language-option {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.4rem 0.7rem !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  border: none !important;
+  background: transparent !important;
+  width: 100% !important;
+  text-align: left !important;
+  color: #333 !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.language-option::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.05), transparent) !important;
+  transition: left 0.3s ease !important;
+}
+
+.language-option:hover::before {
+  left: 100% !important;
+}
+
+.language-option:hover {
+  background: rgba(139, 92, 246, 0.1) !important;
+  color: #8B5CF6 !important;
+  transform: translateX(4px) !important;
+}
+
+.language-option.active {
+  background: rgba(139, 92, 246, 0.15) !important;
+  color: #8B5CF6 !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 1px 0 rgba(139, 92, 246, 0.1) !important;
+}
+
+.language-option .flag {
+  font-size: 1rem !important;
+  flex-shrink: 0 !important;
+}
+
+.language-option .name {
+  flex: 1 !important;
+  text-align: left !important;
+}
+
+/* MOBILE RESPONSIVE */
+@media (max-width: 768px) {
+  .header-content {
+    padding: 0.75rem !important;
+  }
+  
+  .header-top-row {
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .header-app-name h1 {
+    font-size: 2rem !important;
+  }
+  
+  .header-weather-row {
+    margin-top: 0.75rem !important;
+  }
+  
+  .weather-info-horizontal {
+    gap: 1rem !important;
+    padding: 0.4rem 0.75rem !important;
+  }
+  
+  .weather-item-horizontal {
+    font-size: 0.8rem !important;
+    gap: 0.4rem !important;
+  }
+  
+  .weather-icon-svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  
+  .header-license-section {
+    max-width: 100% !important;
+  }
+  
+  .header-weather-section {
+    align-self: center !important;
+  }
+  
+  .weather-info-horizontal {
+    flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+    padding: 0.4rem 0.6rem !important;
+  }
+  
+  .weather-item-horizontal {
+    font-size: 0.75rem !important;
+  }
+  
+  .weather-icon-svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  /* Collapsed header mobile styles */
+  .collapsed-content {
+    padding: 0.4rem 0.75rem !important;
+    height: 50px !important;
+  }
+  
+  .main-header.collapsed-header {
+    min-height: 50px !important;
+  }
+  
+  .collapsed-content img {
+    height: 24px !important;
+  }
+  
+  .collapsed-content > div:first-child > div:last-child {
+    gap: 0.5rem !important;
+    font-size: 0.75rem !important;
+  }
+  
+  .collapsed-content > div:first-child > div:last-child > div {
+    gap: 0.15rem !important;
+  }
+  
+  .collapsed-content > div:first-child > div:last-child svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  .collapsed-content > div:last-child > div:first-child {
+    font-size: 0.75rem !important;
+    padding: 0.2rem 0.5rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content {
+    padding: 0.5rem !important;
+  }
+  
+  .header-app-name h1 {
+    font-size: 1.8rem !important;
+  }
+  
+  .language-btn {
+    min-width: 60px !important;
+    padding: 0.3rem 0.5rem !important;
+    font-size: 0.75rem !important;
+  }
+  
+  .weather-info {
+    min-width: 180px !important;
+    padding: 0.75rem !important;
+  }
+  
+  .weather-item {
+    font-size: 0.8rem !important;
+  }
+}

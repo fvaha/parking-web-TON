@@ -1,0 +1,640 @@
+/* AdminDashboard Responsive Styles */
+
+/* Base responsive container */
+.admin-dashboard {
+  transition: all 0.3s ease;
+}
+
+/* Dark mode support */
+.admin-dashboard[data-night-mode="true"] {
+  background-color: #1a1a2e;
+  color: #ffffff;
+}
+
+.admin-dashboard[data-night-mode="true"] .dashboard-header {
+  border-bottom-color: #374151;
+}
+
+.admin-dashboard[data-night-mode="true"] .dashboard-header h1 {
+  color: #ffffff;
+}
+
+.admin-dashboard[data-night-mode="true"] .summary-item,
+.admin-dashboard[data-night-mode="true"] .stat-card,
+.admin-dashboard[data-night-mode="true"] .chart-container {
+  background-color: #2d3748;
+  border-color: #4a5568;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+}
+
+.admin-dashboard[data-night-mode="true"] .summary-item > div:last-child,
+.admin-dashboard[data-night-mode="true"] .stat-card h3 {
+  color: #a0aec0;
+}
+
+.admin-dashboard[data-night-mode="true"] .tab {
+  background-color: #374151;
+  color: #d1d5db;
+}
+
+.admin-dashboard[data-night-mode="true"] .tab.active {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.admin-dashboard[data-night-mode="true"] .header-actions button {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.admin-dashboard[data-night-mode="true"] .chart-container h3 {
+  color: #ffffff;
+}
+
+.admin-dashboard[data-night-mode="true"] .dashboard-tabs {
+  border-bottom-color: #374151;
+}
+
+.admin-dashboard[data-night-mode="true"] .form-group label,
+.admin-dashboard[data-night-mode="true"] .modal-header h3 {
+  color: #d1d5db !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .form-group input,
+.admin-dashboard[data-night-mode="true"] .form-group select,
+.admin-dashboard[data-night-mode="true"] .form-group textarea {
+  background-color: #2d3748 !important;
+  border-color: #4a5568 !important;
+  color: #ffffff !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .form-group input::placeholder,
+.admin-dashboard[data-night-mode="true"] .form-group textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .form-group input:disabled {
+  background-color: #374151 !important;
+  color: #9ca3af !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .modal-close {
+  color: #d1d5db !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .modal-close:hover {
+  background-color: #374151 !important;
+  color: #ffffff !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .btn-secondary {
+  background-color: #374151 !important;
+  border-color: #4a5568 !important;
+  color: #d1d5db !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .btn-secondary:hover {
+  background-color: #4a5568 !important;
+  border-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .sensor-card,
+.admin-dashboard[data-night-mode="true"] .tab-header,
+.admin-dashboard[data-night-mode="true"] .sensors-grid {
+  color: #ffffff;
+}
+
+.admin-dashboard[data-night-mode="true"] .sensor-card {
+  background-color: #2d3748 !important;
+  border-color: #4a5568 !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .add-sensor-btn,
+.admin-dashboard[data-night-mode="true"] .edit-btn,
+.admin-dashboard[data-night-mode="true"] .delete-btn {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.admin-dashboard[data-night-mode="true"] .reservations-summary > div > div {
+  background-color: #374151 !important;
+  border-color: #4a5568 !important;
+}
+
+/* Mobile-first responsive breakpoints */
+@media (max-width: 480px) {
+  .admin-dashboard {
+    padding: 0 0.25rem !important;
+  }
+  
+  .dashboard-header {
+    padding: 0.5rem 0 !important;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 1.25rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .header-actions button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.6rem 0.75rem !important;
+    font-size: 0.8rem !important;
+    min-height: 44px !important;
+  }
+  
+  .header-actions button span {
+    display: inline !important;
+  }
+  
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem !important;
+    padding: 0 !important;
+  }
+  
+  .summary-item {
+    min-height: 90px !important;
+    padding: 0.75rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+  
+  .summary-item > div:first-child {
+    font-size: clamp(1.25rem, 5vw, 1.75rem) !important;
+    margin-bottom: 0.25rem !important;
+  }
+  
+  .summary-item > div:last-child {
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+  }
+  
+  .stats-grid {
+    padding: 0 !important;
+  }
+  
+  .stats-grid > div {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  
+  .stat-card {
+    min-width: 100% !important;
+    max-width: 100% !important;
+    padding: 1rem !important;
+  }
+  
+  .stat-card h3 {
+    font-size: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .stat-card p {
+    font-size: clamp(1.25rem, 5vw, 1.75rem) !important;
+  }
+  
+  .chart-container {
+    padding: 1rem !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  
+  .chart-container h3 {
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .ResponsiveContainer {
+    height: 200px !important;
+    width: 100% !important;
+  }
+  
+  .charts-section {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  
+  .reservations-summary {
+    padding: 0 !important;
+  }
+  
+  .reservations-summary h3 {
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .reservations-summary > div {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  
+  .reservations-summary > div > div {
+    width: 100% !important;
+    padding: 0.75rem 1rem !important;
+  }
+  
+  .tab-group {
+    gap: 0.25rem !important;
+  }
+  
+  .tab-group > div {
+    font-size: 0.65rem !important;
+  }
+  
+  .tab {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.7rem !important;
+    min-width: 60px !important;
+    min-height: 60px !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+  }
+  
+  .tab span {
+    display: inline !important;
+    font-size: 0.65rem !important;
+  }
+  
+  .tab-group {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin !important;
+    padding-bottom: 0.5rem !important;
+  }
+  
+  .tab-group::-webkit-scrollbar {
+    height: 4px !important;
+  }
+  
+  .tab-group::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+  
+  .tab-group::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-radius: 2px !important;
+  }
+  
+  .admin-dashboard[data-night-mode="true"] .tab-group::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+  
+  .modal-content {
+    width: 95% !important;
+    max-width: 95vw !important;
+  }
+  
+  .modal-header {
+    padding: 0.75rem 1rem !important;
+  }
+  
+  .modal-header h3 {
+    font-size: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  .modal-body {
+    padding: 1rem !important;
+  }
+  
+  .modal-footer {
+    padding: 0.75rem 1rem !important;
+    gap: 0.5rem !important;
+    flex-wrap: wrap !important;
+  }
+  
+  .modal-footer button {
+    padding: 0.6rem 1rem !important;
+    font-size: 0.8rem !important;
+    min-height: 44px !important;
+  }
+  
+  .form-group input,
+  .form-group select {
+    padding: 0.6rem !important;
+    font-size: 0.8rem !important;
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 768px) and (min-width: 481px) {
+  .admin-dashboard {
+    padding: 0 0.5rem !important;
+  }
+  
+  .dashboard-header {
+    padding: 0.75rem 0 !important;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 1.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .header-actions {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .header-actions button {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+  }
+  
+  .header-actions button span {
+    display: inline !important;
+  }
+  
+  .summary-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  
+  .summary-item {
+    min-height: 100px !important;
+    padding: 1rem !important;
+  }
+  
+  .summary-item > div:first-child {
+    font-size: 1.5rem !important;
+  }
+  
+  .summary-item > div:last-child {
+    font-size: 0.75rem !important;
+  }
+  
+  .stats-grid > div {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  
+  .chart-container {
+    padding: 1.5rem !important;
+  }
+  
+  .chart-container h3 {
+    font-size: 1.1rem !important;
+  }
+  
+  .ResponsiveContainer {
+    height: 225px !important;
+  }
+  
+  .tab-group {
+    gap: 0.5rem !important;
+  }
+  
+  .tab-group > div {
+    font-size: 0.75rem !important;
+  }
+  
+  .tab {
+    padding: 0.6rem 0.85rem !important;
+    font-size: 0.75rem !important;
+  }
+  
+  .tab span {
+    display: inline !important;
+  }
+  
+  .modal-content {
+    width: 90% !important;
+    max-width: 90vw !important;
+  }
+  
+  .modal-header {
+    padding: 1rem 1.5rem !important;
+  }
+  
+  .modal-header h3 {
+    font-size: 1.1rem !important;
+    padding-right: 2rem !important;
+  }
+  
+  .modal-body {
+    padding: 1.25rem !important;
+  }
+  
+  .modal-footer {
+    padding: 1rem 1.5rem !important;
+    gap: 0.75rem !important;
+  }
+  
+  .modal-footer button {
+    padding: 0.7rem 1.25rem !important;
+    font-size: 0.85rem !important;
+    min-height: 44px !important;
+  }
+  
+  .form-group input,
+  .form-group select {
+    padding: 0.75rem !important;
+    font-size: 0.875rem !important;
+    min-height: 44px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .admin-dashboard {
+    padding: 0 1rem !important;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 2.5rem !important;
+  }
+  
+  .header-actions {
+    gap: 0.5rem;
+  }
+  
+  .header-actions button span {
+    display: inline !important;
+  }
+  
+  .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    gap: 1rem !important;
+  }
+  
+  .summary-item {
+    min-height: 100px !important;
+    padding: 1.5rem !important;
+  }
+  
+  .summary-item > div:first-child {
+    font-size: 2rem !important;
+  }
+  
+  .summary-item > div:last-child {
+    font-size: 0.875rem !important;
+  }
+  
+  .stats-grid > div {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) !important;
+    gap: 1rem !important;
+  }
+  
+  .chart-container {
+    padding: 2rem !important;
+  }
+  
+  .chart-container h3 {
+    font-size: 1.25rem !important;
+  }
+  
+  .ResponsiveContainer {
+    height: 250px !important;
+  }
+  
+  .tab-group {
+    gap: 0.75rem !important;
+  }
+  
+  .tab-group > div {
+    font-size: 0.875rem !important;
+  }
+  
+  .tab {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  .tab span {
+    display: inline !important;
+  }
+  
+  .modal-content {
+    width: 500px !important;
+    max-width: 500px !important;
+  }
+  
+  .modal-header {
+    padding: 1rem 1.5rem !important;
+  }
+  
+  .modal-header h3 {
+    font-size: 1.25rem !important;
+    padding-right: 2rem !important;
+  }
+  
+  .modal-body {
+    padding: 1.5rem !important;
+  }
+  
+  .modal-footer {
+    padding: 1rem 1.5rem !important;
+    gap: 0.75rem !important;
+  }
+  
+  .modal-footer button {
+    padding: 0.75rem 1.5rem !important;
+    font-size: 0.875rem !important;
+    min-height: 44px !important;
+  }
+  
+  .form-group input,
+  .form-group select {
+    padding: 0.75rem !important;
+    font-size: 0.875rem !important;
+    min-height: 44px !important;
+  }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+  .tab,
+  .header-actions button,
+  .modal-footer button,
+  .form-group input,
+  .form-group select {
+    min-height: 48px !important;
+  }
+  
+  .tab {
+    min-width: 48px !important;
+  }
+  
+  .summary-item,
+  .stat-card {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  
+  .summary-item:active,
+  .stat-card:active {
+    transform: scale(0.98);
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .admin-dashboard {
+    border: 2px solid #000;
+  }
+  
+  .summary-item,
+  .stat-card,
+  .chart-container {
+    border: 2px solid #000 !important;
+  }
+  
+  .tab.active {
+    border: 2px solid #000 !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .admin-dashboard,
+  .tab,
+  .header-actions button,
+  .modal-footer button,
+  .summary-item,
+  .stat-card {
+    transition: none !important;
+  }
+  
+  .summary-item:active,
+  .stat-card:active {
+    transform: none !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  .admin-dashboard {
+    padding: 0 !important;
+  }
+  
+  .dashboard-header,
+  .dashboard-tabs,
+  .header-actions,
+  .modal-overlay {
+    display: none !important;
+  }
+  
+  .dashboard-content {
+    display: block !important;
+  }
+  
+  .summary-grid,
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1rem !important;
+  }
+  
+  .chart-container {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

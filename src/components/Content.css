@@ -1,0 +1,3404 @@
+/* Content Styles */
+.app-main {
+  flex: 1;
+  padding: 0;
+  max-width: 100%;
+  margin: 0;
+  width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Prevent main from expanding when admin dashboard shows error/loading */
+.app-main:has(.admin-dashboard:has(.error-container)),
+.app-main:has(.admin-dashboard:has(.loading-container)) {
+  flex: none;
+  align-self: flex-start;
+}
+
+/* Prevent main from expanding when admin login is shown */
+.app-main:has(.admin-login-container) {
+  flex: none !important;
+  align-self: flex-start !important;
+  height: fit-content !important;
+}
+
+/* Fallback for browsers that don't support :has() selector */
+.app-main:has(.admin-dashboard.error-state),
+.app-main:has(.admin-dashboard.loading-state) {
+  flex: none;
+  align-self: flex-start;
+}
+
+/* Fallback for browsers that don't support :has() selector - Admin Login */
+.app-main .admin-login-container {
+  flex: none !important;
+  align-self: flex-start !important;
+  height: fit-content !important;
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    padding: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-main {
+    padding: 0;
+  }
+}
+
+/* Map View */
+.map-view {
+  background: white;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  min-height: calc(100vh - 200px);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .map-view {
+    padding: 0;
+    min-height: 70vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-view {
+    padding: 0;
+    min-height: 65vh;
+  }
+}
+
+.map-container {
+  width: 100% !important;
+  height: calc(100vh - 200px) !important;
+  min-height: 500px !important;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
+  margin: 0;
+  flex: 1;
+  position: relative !important;
+  display: block !important;
+}
+
+/* Ensure Leaflet container has proper dimensions */
+.map-container .leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+/* Parking Status Panel - Removed, legends are now in the map */
+
+/* Map Controls - Removed, replaced with transparent overlay */
+
+/* Map Control Buttons - Removed, replaced with transparent overlay */
+
+/* Parking Space Cards */
+.parking-spaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .parking-spaces-grid {
+    gap: 1rem;
+    padding: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .parking-spaces-grid {
+    gap: 0.75rem;
+    padding: 0.15rem;
+  }
+}
+
+.parking-space-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 1px solid #e0e0e0;
+}
+
+.parking-space-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.parking-space-card.occupied {
+  border-color: #ff6b6b;
+  background: linear-gradient(135deg, #fff5f5, #ffe8e8);
+}
+
+.parking-space-card.available {
+  border-color: #51cf66;
+  background: linear-gradient(135deg, #f8fff9, #ebfbee);
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.form-button:hover {
+  background: #5a6fd8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.form-button:active {
+  transform: translateY(0);
+}
+
+/* Admin Dashboard - Modern Design */
+.admin-dashboard {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  padding: 0;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  margin: 0;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  min-height: auto;
+}
+
+@media (max-width: 768px) {
+  .admin-dashboard {
+    padding: 0;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-dashboard {
+    padding: 0;
+    border-radius: 12px;
+  }
+}
+
+.admin-dashboard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  border-radius: 24px 24px 0 0;
+}
+
+/* Admin Dashboard when showing login/error state */
+.admin-dashboard:has(.error-container),
+.admin-dashboard:has(.loading-container) {
+  height: fit-content !important;
+  min-height: auto !important;
+  padding: 0 !important;
+  max-height: none !important;
+}
+
+/* Additional override for unauthenticated state */
+.admin-dashboard .error-container,
+.admin-dashboard .loading-container {
+  margin: 0;
+  padding: 2rem;
+}
+
+/* Override flex behavior when showing error/loading */
+.admin-dashboard:has(.error-container),
+.admin-dashboard:has(.loading-container) {
+  flex: none !important;
+  align-self: flex-start !important;
+}
+
+/* Fallback for browsers that don't support :has() selector */
+.admin-dashboard.error-state,
+.admin-dashboard.loading-state {
+  flex: none !important;
+  align-self: flex-start !important;
+  height: fit-content !important;
+  min-height: auto !important;
+  padding: 0 !important;
+  max-height: none !important;
+}
+
+/* Additional compact styling for error/loading states */
+.admin-dashboard.error-state .error-container,
+.admin-dashboard.loading-state .loading-container {
+  max-width: 500px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.6s;
+}
+
+.stat-card:hover::before {
+  left: 100%;
+}
+
+.stat-number {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  font-weight: 600;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Dashboard Content Tabs */
+.dashboard-content {
+  width: 100%;
+  overflow: hidden;
+}
+
+.overview-tab,
+.sensors-tab,
+.spaces-tab,
+.usage-tab,
+.reservations-tab {
+  width: 100%;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.overview-tab h2,
+.sensors-tab h2,
+.spaces-tab h2,
+.usage-tab h2,
+.reservations-tab h2 {
+  color: #333;
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Data Summary */
+.data-summary {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.data-summary h3 {
+  margin: 0 0 1.5rem 0;
+  color: #1e293b;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.summary-item .label {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.summary-item .value {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 1.1rem;
+}
+
+.tab-header {
+  margin: 0 0 1rem 0;
+  text-align: center;
+}
+
+.tab-header h2 {
+  color: #333;
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Charts Section - Modern */
+.charts-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.chart-container {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  padding: 1.5rem;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chart-container:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.chart-container h3 {
+  margin-bottom: 1rem;
+  color: #1e293b;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  text-align: center;
+  font-weight: 700;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.1rem;
+}
+
+/* Sensors Management */
+.sensors-tab {
+  width: 100%;
+  overflow: hidden;
+}
+
+.sensors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.sensor-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.sensor-info h3 {
+  color: #333;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.sensor-info p {
+  color: #666;
+  margin-bottom: 0.5rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.sensor-actions {
+  margin-top: 1rem;
+}
+
+.sensor-actions button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  font-weight: 600;
+  width: 100%;
+}
+
+.sensor-actions button:hover {
+  background: #c82333;
+}
+
+.sensor-zone {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid;
+}
+
+.sensor-zone .zone-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.sensor-zone small {
+  display: block;
+  color: #666;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Parking Spaces Management */
+.spaces-tab {
+  width: 100%;
+  overflow: hidden;
+}
+
+.spaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.space-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.space-card h3 {
+  color: #333;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.space-card p {
+  color: #666;
+  margin-bottom: 0.5rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Usage Analytics */
+.usage-tab {
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.usage-tab .filter-section {
+  margin-bottom: 2rem;
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.usage-tab .filter-section h2 {
+  margin: 0 !important;
+  color: #333;
+  font-size: 1.8rem;
+  font-weight: 600;
+  flex-shrink: 0 !important;
+  display: block !important;
+}
+
+.usage-tab .filter-section input {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  min-width: 200px;
+  max-width: 300px;
+  flex-shrink: 0 !important;
+  display: block !important;
+  width: auto !important;
+}
+
+.usage-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.usage-table::-webkit-scrollbar {
+  height: 8px;
+}
+
+.usage-table::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.usage-table::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.usage-table::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.usage-table table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0;
+  padding: 0;
+}
+
+.usage-table th,
+.usage-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  vertical-align: top;
+}
+
+.usage-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.usage-table td {
+  color: #666;
+  line-height: 1.4;
+}
+
+/* Column widths for better mobile experience */
+.usage-table th:nth-child(1),
+.usage-table td:nth-child(1) {
+  width: 20%;
+  min-width: 120px;
+}
+
+.usage-table th:nth-child(2),
+.usage-table td:nth-child(2) {
+  width: 15%;
+  min-width: 80px;
+}
+
+.usage-table th:nth-child(3),
+.usage-table td:nth-child(3) {
+  width: 25%;
+  min-width: 150px;
+}
+
+.usage-table th:nth-child(4),
+.usage-table td:nth-child(4) {
+  width: 20%;
+  min-width: 100px;
+}
+
+.usage-table th:nth-child(5),
+.usage-table td:nth-child(5) {
+  width: 20%;
+  min-width: 80px;
+}
+
+/* Reservations Management */
+.reservations-tab {
+  width: 100%;
+  overflow: hidden;
+}
+
+.reservations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.reservation-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.reservation-card h3 {
+  color: #333;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.reservation-card p {
+  color: #666;
+  margin-bottom: 0.5rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Status Indicators */
+.status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.status.vacant,
+.status.available {
+  background: #e8f5e8;
+  color: #2e7d32;
+}
+
+.status.occupied {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.status.reserved {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.status.active {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.status.inactive {
+  background: #f5f5f5;
+  color: #666;
+}
+
+/* Animation for tab transitions */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spaces View */
+.spaces-view {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: 0.5rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .spaces-view {
+    padding: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .spaces-view {
+    padding: 0.15rem;
+  }
+}
+
+.spaces-view h2 {
+  margin-bottom: 2rem;
+  color: #333;
+  font-size: 1.8rem;
+  text-align: center;
+  word-wrap: break-word;
+}
+
+.spaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding: 0.5rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .spaces-grid {
+    gap: 1rem;
+    padding: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .spaces-grid {
+    gap: 0.75rem;
+    padding: 0.15rem;
+  }
+}
+
+.parking-space-card.status-vacant {
+  border-left: 4px solid #00FF00;
+}
+
+.parking-space-card.status-occupied {
+  border-left: 4px solid #FF0000;
+}
+
+.parking-space-card.status-reserved {
+  border-left: 4px solid #FFA500;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+  overflow: hidden;
+}
+
+.card-header h3 {
+  color: #333;
+  font-size: 1.3rem;
+  word-wrap: break-word;
+}
+
+.header-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.session-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid #fbbf24;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-badge.status-vacant {
+  background: #e8f5e8;
+  color: #2e7d32;
+}
+
+.status-badge.status-occupied {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.status-badge.status-reserved {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.card-body {
+  margin-bottom: 0.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0;
+  color: #666;
+  flex-wrap: wrap;
+  min-height: 1.5rem;
+  width: 100%;
+  overflow: hidden;
+  word-wrap: break-word;
+}
+
+.info-row svg {
+  color: #999;
+  flex-shrink: 0;
+}
+
+.card-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: auto;
+  width: 100%;
+}
+
+.reserve-btn, .navigate-btn {
+  flex: 1;
+  padding: 1rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 120px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reserve-btn {
+  background: #667eea;
+  color: white;
+}
+
+.reserve-btn:hover {
+  background: #5a6fd8;
+}
+
+.reserve-btn.disabled {
+  background: #9ca3af;
+  color: #6b7280;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.reserve-btn.disabled:hover {
+  background: #9ca3af;
+  transform: none;
+}
+
+.disabled-reserve-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.disabled-message {
+  color: #6b7280;
+  font-size: 0.75rem;
+  text-align: center;
+  font-style: italic;
+}
+
+.navigate-btn {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.navigate-btn:hover {
+  background: #e9ecef;
+}
+
+/* Dashboard Header - Modern */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  width: 100%;
+  overflow: hidden;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dashboard-header h1 {
+  color: #1e293b;
+  font-size: 2.5rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-weight: 800;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+/* Header actions removed - Now handled in Header.css */
+
+.export-btn, .logout-btn, .refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  min-height: 40px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
+  font-size: 0.9rem;
+}
+
+.export-btn::before, .logout-btn::before, .refresh-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.export-btn:hover::before, .logout-btn:hover::before, .refresh-btn:hover::before {
+  left: 100%;
+}
+
+.export-btn:focus, .logout-btn:focus, .refresh-btn:focus {
+  outline: none;
+}
+
+.refresh-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+}
+
+.refresh-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+}
+
+.test-data-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
+}
+
+.test-data-btn:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4);
+}
+
+.export-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+}
+
+.export-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4);
+}
+
+.logout-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+}
+
+.logout-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+}
+
+/* Dashboard Tabs - Modern */
+.dashboard-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0.5rem 1.5rem;
+  width: 100%;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.dashboard-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.dashboard-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-tabs::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.tab {
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 16px 16px 0 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-height: 44px;
+  flex: 0 0 auto;
+  min-width: 100px;
+  max-width: 130px;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tab::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transform: scaleX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #334155;
+  transform: translateY(-2px);
+}
+
+.tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.tab.active::before {
+  transform: scaleX(1);
+}
+
+.tab:focus {
+  outline: none;
+}
+
+.tab svg {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.tab span {
+  font-size: 0.85rem;
+  line-height: 1;
+  text-align: left;
+}
+
+/* Admin Login - Modern Design */
+.admin-login {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: auto;
+  padding: 1rem;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  height: fit-content;
+}
+
+@media (max-width: 768px) {
+  .admin-login {
+    padding: 0.5rem;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-login {
+    padding: 0.25rem;
+    min-height: auto;
+  }
+}
+
+.login-container {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  padding: 2rem;
+  border-radius: 24px;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    padding: 1.5rem;
+    border-radius: 16px;
+    max-width: 400px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    padding: 1rem;
+    border-radius: 12px;
+    max-width: 350px;
+  }
+}
+
+.login-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  border-radius: 24px 24px 0 0;
+}
+
+.login-header {
+  margin-bottom: 1.5rem;
+}
+
+.login-header h1 {
+  color: #1e293b;
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 800;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.login-header p {
+  color: #64748b;
+  font-size: 1.1rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.6;
+  font-weight: 500;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.login-icon {
+  color: #667eea;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 4px 8px rgba(102, 126, 234, 0.3));
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.form-group {
+  width: 100%;
+  text-align: left;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.95rem;
+  word-wrap: break-word;
+  margin-bottom: 0.75rem;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.form-group input {
+  padding: 1.25rem 1.5rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 56px;
+  overflow: hidden;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 
+    0 0 0 4px rgba(102, 126, 234, 0.1),
+    0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateY(-2px);
+}
+
+.form-group input:disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.form-group input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.login-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 1.25rem;
+  border-radius: 16px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  min-height: 56px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.login-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.login-btn:hover::before {
+  left: 100%;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a5acd 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+}
+
+.login-btn:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.login-btn:disabled {
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.3);
+}
+
+.login-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  margin-left: -2rem;
+  margin-right: -2rem;
+  margin-bottom: -2rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-bottom: 1.5rem;
+  border-radius: 0 0 24px 24px;
+}
+
+.login-footer p {
+  margin: 0.5rem 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-weight: 500;
+}
+
+.login-footer strong {
+  color: #334155;
+  font-weight: 700;
+}
+
+/* Error Message Styling - Modern */
+.error-message {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 1.25rem;
+  border-radius: 16px;
+  margin: 1rem 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.1);
+  border-left: 4px solid #dc2626;
+}
+
+/* Responsive Design - Mobile First Approach */
+
+/* Base mobile styles (applied to all screen sizes) */
+.app-main {
+  padding: 0;
+}
+
+.map-view {
+  min-height: calc(100vh - 200px);
+}
+
+.map-container {
+  height: calc(100vh - 200px);
+  min-height: 400px;
+  margin: 0;
+}
+
+/* Map controls removed */
+
+/* Map control buttons removed */
+
+/* Parking status panel removed */
+
+/* Status grid removed */
+
+/* Status item removed */
+
+.parking-spaces-grid {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 0;
+}
+
+.parking-space-card {
+  padding: 1rem;
+}
+
+.card-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.card-actions {
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+  .card-actions button {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .complete-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+  }
+  
+  .complete-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+  }
+
+.spaces-view {
+  padding: 0;
+}
+
+.spaces-grid {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.admin-dashboard {
+  padding: 0;
+}
+
+.dashboard-header {
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.dashboard-header h1 {
+  font-size: 1.5rem;
+}
+
+  /* Header actions removed - Now handled in Header.css */
+
+  .export-btn, .logout-btn, .refresh-btn {
+    width: auto;
+    flex: 1;
+    min-width: 80px;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+  }
+
+.dashboard-tabs {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.tab {
+  flex: 1;
+  min-width: 80px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.admin-stats {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.stats-grid {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.charts-section {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.chart-container {
+  padding: 1rem;
+}
+
+.admin-login {
+  padding: 0;
+  min-height: auto;
+}
+
+.login-container {
+  padding: 2rem 1.5rem;
+  margin: 0 0.5rem;
+  max-width: calc(100% - 1rem);
+}
+
+.login-header h1 {
+  font-size: 1.5rem;
+}
+
+.form-group input {
+  padding: 0.75rem;
+  font-size: 1rem;
+}
+
+.login-btn {
+  padding: 0.75rem;
+  font-size: 1rem;
+}
+
+/* Small tablets (768px and up) */
+@media (min-width: 768px) {
+  .app-main {
+    padding: 0;
+  }
+  
+  .map-container {
+    height: calc(100vh - 200px);
+    min-height: 500px;
+    margin: 0;
+  }
+  
+  /* Map controls removed */
+  
+  /* Map control buttons removed */
+  
+  /* Parking status panel removed */
+  
+  /* Status grid removed */
+  
+  /* Status item removed */
+  
+  .parking-spaces-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 0;
+  }
+  
+  .parking-space-card {
+    padding: 1.5rem;
+  }
+  
+  .card-header {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .card-actions {
+    flex-direction: row;
+    gap: 1rem;
+  }
+  
+  .card-actions button {
+    width: auto;
+    padding: 1rem;
+    font-size: 1rem;
+    flex: 1;
+  }
+  
+  .complete-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+  }
+  
+  .complete-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+  }
+  
+  .spaces-view {
+    padding: 0;
+  }
+  
+  .spaces-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .admin-dashboard {
+    padding: 0;
+  }
+  
+  .dashboard-header {
+    flex-direction: row;
+    gap: 2rem;
+    align-items: center;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 2rem;
+  }
+  
+    /* Header actions removed - Now handled in Header.css */
+
+  .export-btn, .logout-btn, .refresh-btn {
+    width: auto;
+    justify-content: center;
+  }
+  
+  .dashboard-tabs {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  
+  .tab {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .admin-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .charts-section {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  
+  .chart-container {
+    padding: 1.5rem;
+  }
+  
+  .admin-login {
+    padding: 0;
+    min-height: 60vh;
+  }
+  
+  .login-container {
+    padding: 3rem;
+    margin: 0;
+    max-width: 400px;
+  }
+  
+  .login-header h1 {
+    font-size: 2rem;
+  }
+  
+  .form-group input {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+  
+  .login-btn {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+}
+
+/* Large tablets and small desktops (1024px and up) */
+@media (min-width: 1024px) {
+  .app-main {
+    padding: 0;
+    max-width: 1200px;
+  }
+  
+  .map-container {
+    height: calc(100vh - 200px);
+    min-height: 600px;
+    margin: 0;
+  }
+  
+  /* Map controls removed */
+  
+  /* Map control buttons removed */
+  
+  /* Parking status panel removed */
+  
+  .parking-spaces-grid {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 2rem;
+  }
+  
+  .spaces-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+  }
+  
+  .admin-dashboard {
+    padding: 0;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 2.2rem;
+  }
+}
+
+/* Large desktops (1440px and up) */
+@media (min-width: 1440px) {
+  .app-main {
+    padding: 0;
+    max-width: 1400px;
+  }
+  
+  .map-container {
+    height: calc(100vh - 200px);
+    min-height: 700px;
+  }
+  
+  .parking-spaces-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2.5rem;
+  }
+  
+  .spaces-grid {
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 2.5rem;
+  }
+  
+  .admin-dashboard {
+    padding: 0;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 2.5rem;
+  }
+}
+
+/* Landscape orientation adjustments for mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .map-container {
+    height: calc(100vh - 180px);
+    min-height: 400px;
+  }
+  
+  .app-navigation {
+    padding: 0.5rem;
+  }
+  
+  .nav-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  .admin-login {
+    min-height: auto;
+    padding: 0.5rem;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .parking-space-card:hover,
+  .reserve-btn:hover,
+  .navigate-btn:hover {
+    transform: none;
+    box-shadow: inherit;
+  }
+  
+  .parking-space-card:active,
+  .reserve-btn:active,
+  .navigate-btn:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Responsive Design for Admin Dashboard */
+@media (max-width: 768px) {
+  .admin-dashboard {
+    padding: 1rem;
+    margin: 0;
+    border-radius: 8px;
+  }
+  
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+  
+  /* Header actions removed - Now handled in Header.css */
+  
+  .export-btn, .logout-btn {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    min-height: 40px;
+  }
+  
+  .dashboard-tabs {
+    flex-direction: row;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 0.5rem;
+  }
+  
+  .tab {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 80px;
+    max-width: 100px;
+    border-radius: 8px;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.7rem;
+    min-height: 32px;
+    gap: 0.3rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .stat-card {
+    padding: 0.75rem;
+    border-radius: 12px;
+  }
+  
+  .stat-number {
+    font-size: 1.25rem;
+  }
+  
+  .charts-section {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .chart-container {
+    padding: 0.75rem;
+    border-radius: 12px;
+  }
+  
+  .sensors-grid,
+  .spaces-grid,
+  .reservations-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .sensor-card,
+  .space-card,
+  .reservation-card {
+    padding: 1rem;
+  }
+  
+  .usage-table {
+    font-size: 0.9rem;
+    margin: 0;
+    border-radius: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .usage-table table {
+    min-width: 500px;
+    width: 100%;
+  }
+  
+  .usage-table th,
+  .usage-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.85rem;
+  }
+  
+  .usage-tab .filter-section {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    text-align: left !important;
+    gap: 1rem;
+  }
+  
+  .usage-tab .filter-section h2 {
+    font-size: 1.5rem;
+    margin: 0;
+  }
+  
+  .usage-tab .filter-section input {
+    min-width: 120px;
+    max-width: 200px;
+    width: auto;
+    flex-shrink: 0;
+  }
+  
+  .overview-tab h2,
+  .sensors-tab h2,
+  .spaces-tab h2,
+  .usage-tab h2,
+  .reservations-tab h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .tab-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .admin-dashboard {
+    padding: 1.5rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .charts-section {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .sensors-grid,
+  .spaces-grid,
+  .reservations-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .dashboard-tabs {
+    gap: 0.75rem;
+  }
+  
+  .tab {
+    padding: 0.875rem 1.25rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* Responsive Design for Admin Login */
+@media (max-width: 768px) {
+  .admin-login {
+    padding: 0.5rem;
+    min-height: auto;
+  }
+  
+  .login-container {
+    padding: 1.5rem;
+    margin: 0 0.5rem;
+    max-width: calc(100% - 1rem);
+    border-radius: 12px;
+  }
+  
+  .login-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .login-header p {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+  
+  .login-icon {
+    margin-bottom: 0.75rem;
+  }
+  
+  .form-group label {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-group input {
+    padding: 0.875rem;
+    font-size: 1rem;
+    min-height: 44px;
+  }
+  
+  .login-btn {
+    padding: 0.875rem;
+    font-size: 1rem;
+    min-height: 44px;
+  }
+  
+  .login-footer {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    font-size: 0.85rem;
+  }
+  
+  .error-message {
+    padding: 0.875rem;
+    font-size: 0.85rem;
+    margin: 0.75rem 0;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .admin-login {
+    padding: 1.5rem;
+  }
+  
+  .login-container {
+    padding: 2.5rem;
+    max-width: 450px;
+  }
+  
+  .login-header h1 {
+    font-size: 1.75rem;
+  }
+  
+  .form-group input {
+    min-height: 48px;
+  }
+  
+  .login-btn {
+    min-height: 48px;
+  }
+}
+
+/* Extra small screens for admin dashboard */
+@media (max-width: 480px) {
+  .admin-dashboard {
+    padding: 0.75rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.4rem;
+  }
+
+  /* Header actions removed - Now handled in Header.css */
+
+  .export-btn, .logout-btn, .refresh-btn, .test-data-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    min-width: 70px;
+  }
+  
+  .dashboard-tabs {
+    gap: 0.2rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .tab {
+    min-width: 70px;
+    max-width: 85px;
+    padding: 0.4rem 0.4rem;
+    min-height: 28px;
+    font-size: 0.65rem;
+    gap: 0.2rem;
+  }
+  
+  .tab svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .tab span {
+    font-size: 0.65rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .stat-card {
+    padding: 0.5rem;
+  }
+  
+  .stat-number {
+    font-size: 1.1rem;
+  }
+  
+  .chart-container {
+    padding: 0.5rem;
+  }
+  
+  .chart-container h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .usage-table {
+    margin: 0;
+    border-radius: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .usage-table table {
+    min-width: 450px;
+    width: 100%;
+  }
+  
+  .usage-table th,
+  .usage-table td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  .usage-tab .filter-section {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    text-align: left !important;
+    gap: 0.75rem;
+  }
+  
+  .usage-tab .filter-section h2 {
+    font-size: 1.3rem;
+    margin: 0;
+  }
+  
+  .usage-tab .filter-section input {
+    min-width: 100px;
+    max-width: 150px;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    width: auto;
+    flex-shrink: 0;
+  }
+  
+  .data-summary {
+    padding: 1.5rem;
+  }
+  
+  .summary-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .summary-item {
+    padding: 0.75rem;
+  }
+  
+  .summary-item .label {
+    font-size: 0.8rem;
+  }
+  
+  .summary-item .value {
+    font-size: 1rem;
+  }
+  
+  /* Mobile responsive status items removed */
+}
+
+@media (max-width: 768px) {
+    /* Status grid and items removed */
+}
+
+/* Map Legend Controls */
+.map-legend-controls {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.legend-btn {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ddd;
+  padding: 0.75rem;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  height: 48px;
+  width: 48px;
+  display: flex;
+    align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 48px;
+  backdrop-filter: blur(5px);
+}
+
+.legend-btn svg,
+.legend-btn span {
+  width: 18px;
+  height: 18px;
+  color: #333;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.legend-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: #667eea;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.legend-btn:hover svg,
+.legend-btn:hover span {
+  color: #667eea;
+}
+
+.legend-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Map Legend */
+.map-legend {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e0e0e0;
+  max-width: 250px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+}
+
+.legend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.legend-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.legend-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  color: #666;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.legend-close-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.legend-close-btn:active {
+  transform: scale(0.95);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.legend-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-indicator.vacant {
+  background: #00FF00;
+}
+
+.legend-indicator.occupied {
+  background: #FF0000;
+}
+
+.legend-indicator.reserved {
+  background: #FFA500;
+}
+
+.legend-indicator.user-location {
+  background: #4285F4;
+}
+
+.legend-indicator.street-count {
+  background: #333;
+  border-radius: 12px;
+  width: 24px;
+  height: 16px;
+}
+
+/* Street Count Markers on Map */
+.street-count-marker {
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+/* Routing Control Close Button */
+.leaflet-routing-container {
+  position: relative;
+}
+
+.leaflet-routing-container button[innerHTML="×"] {
+  position: absolute !important;
+  top: 5px !important;
+  right: 5px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: none !important;
+  font-size: 20px !important;
+  font-weight: bold !important;
+  color: #000 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 1001 !important;
+  border-radius: 50% !important;
+  line-height: 1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.2s ease !important;
+}
+
+.leaflet-routing-container button[innerHTML="×"]:hover {
+  background: rgba(255, 255, 255, 1) !important;
+  transform: scale(1.1) !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.leaflet-routing-container button[innerHTML="×"]:active {
+  transform: scale(0.95) !important;
+}
+
+/* Route Close Control (Fallback) */
+.route-close-control {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+}
+
+.route-close-control button {
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #000;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.route-close-control button:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.route-close-control button:active {
+  transform: scale(0.95);
+}
+
+/* Route Selector - Floating at bottom */
+.route-selector {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 1000;
+  min-width: 200px;
+}
+
+/* Routing Container Styles */
+.leaflet-routing-container {
+  position: relative;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+}
+
+.leaflet-routing-container.expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+.leaflet-routing-alt {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease;
+}
+
+.leaflet-routing-alt:hover {
+  background-color: #f9fafb;
+}
+
+.leaflet-routing-alt:last-child {
+  border-bottom: none;
+}
+
+.route-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.route-selector-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.route-selector-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.route-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.route-labels {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.route-label {
+  color: #666;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.route-label:hover {
+  color: #333;
+  background: #f0f0f0;
+}
+
+.route-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.route-option {
+  background: #3B82F6;
+  border: 2px solid #3B82F6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+.route-option:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.route-option.selected {
+  background: #10B981;
+  border-color: #10B981;
+  color: white;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.route-option.selected:hover {
+  background: #059669;
+  border-color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+}
+
+/* Mobile responsive route selector */
+@media (max-width: 768px) {
+  .route-selector {
+    bottom: 15px;
+    left: 15px;
+    right: 15px;
+    transform: none;
+    min-width: auto;
+    padding: 0.75rem;
+  }
+  
+  .route-labels {
+    gap: 0.4rem;
+  }
+  
+  .route-label {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .route-buttons {
+    gap: 0.4rem;
+  }
+  
+  .route-option {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .route-selector {
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    padding: 0.5rem;
+  }
+  
+  .route-labels {
+    gap: 0.3rem;
+  }
+  
+  .route-label {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.3rem;
+  }
+  
+  .route-buttons {
+    gap: 0.3rem;
+  }
+  
+  .route-option {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
+
+/* Map Toggle Overlay - Moved to right side */
+.map-toggle-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-toggle-transparent {
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+  cursor: pointer;
+  color: #333;
+  opacity: 0.95;
+  transition: all 0.3s ease;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.map-toggle-transparent:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.map-toggle-transparent:active {
+  transform: scale(0.95);
+}
+
+/* Mobile responsive map toggle */
+@media (max-width: 768px) {
+  .map-toggle-overlay {
+    top: 15px;
+    right: 15px;
+  }
+  
+  .map-toggle-transparent {
+    width: 40px;
+    height: 40px;
+        padding: 0.4rem;
+  }
+  
+  .map-legend-controls {
+    top: 65px;
+    right: 15px;
+  }
+  
+  .legend-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-toggle-overlay {
+    top: 10px;
+    right: 10px;
+  }
+  
+  .map-toggle-transparent {
+    width: 36px;
+    height: 36px;
+    padding: 0.3rem;
+  }
+  
+  .map-legend-controls {
+    top: 56px;
+    right: 10px;
+  }
+  
+  .legend-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0.4rem;
+  }
+}
+
+/* Parking Space Markers on Map */
+.parking-marker {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* User Location Marker */
+.user-location-marker {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile responsive legend */
+@media (max-width: 768px) {
+  .map-legend {
+    top: 120px;
+    right: 15px;
+    max-width: 200px;
+    padding: 0.75rem;
+  }
+  
+  .legend-header h4 {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+  }
+  
+  .legend-item {
+    font-size: 0.8rem;
+    margin-bottom: 0.4rem;
+  }
+  
+  .legend-indicator {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .legend-indicator.street-count {
+    width: 20px;
+    height: 14px;
+    }
+}
+
+/* Zone Management Styles */
+.zone-management {
+  width: 100%;
+  overflow: hidden;
+}
+
+.zone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.zone-header h2 {
+  color: #1e293b;
+  font-size: 1.8rem;
+  margin: 0;
+}
+
+.add-zone-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.add-zone-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.zone-form-container {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.zone-form h3 {
+  margin: 0 0 1.5rem 0;
+  color: #1e293b;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.color-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.color-input input[type="color"] {
+  width: 60px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.color-preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 2px solid #e5e7eb;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+}
+
+.save-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+}
+
+.cancel-btn {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+}
+
+.cancel-btn:hover {
+  background: #4b5563;
+}
+
+.zones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.zone-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid;
+  transition: all 0.3s ease;
+}
+
+.zone-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.zone-card .zone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.zone-card .zone-header h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.zone-status .status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.active {
+  background: #e8f5e8;
+  color: #2e7d32;
+}
+
+.status-badge.inactive {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.zone-description {
+  color: #6b7280;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.zone-pricing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pricing-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.zone-stats {
+  margin-bottom: 1rem;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.zone-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.edit-btn,
+.delete-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.edit-btn:hover {
+  background: #2563eb;
+}
+
+.delete-btn {
+  background: #ef4444;
+  color: white;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
+}
+
+/* Admin Management Styles */
+.admin-management {
+  width: 100%;
+  overflow: hidden;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-header h2 {
+  color: #1e293b;
+  font-size: 1.8rem;
+  margin: 0;
+}
+
+.add-admin-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+
+.add-admin-btn:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+.admin-form-container,
+.password-form-container {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.admin-form h3,
+.password-form h3 {
+  margin: 0 0 1.5rem 0;
+  color: #1e293b;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.warning {
+  color: #f59e0b;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.admins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.admin-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.admin-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.admin-card .admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.admin-info h3 {
+  margin: 0 0 0.5rem 0;
+  color: #1e293b;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-badge.superadmin {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.role-badge.admin {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.admin-details {
+  margin-bottom: 1rem;
+}
+
+.admin-email,
+.admin-created,
+.admin-last-login {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.password-btn {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.password-btn:hover {
+  background: #d97706;
+}
+
+/* Responsive Design for New Components */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .zones-grid,
+  .admins-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .zone-header,
+  .admin-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .zone-form-container,
+  .admin-form-container,
+  .password-form-container {
+    padding: 1.5rem;
+  }
+  
+  .zone-actions,
+  .admin-actions {
+    flex-direction: column;
+  }
+  
+  .edit-btn,
+  .delete-btn,
+  .password-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
