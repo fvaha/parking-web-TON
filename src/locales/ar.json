@@ -138,5 +138,8 @@
   "total_sensors": "إجمالي المستشعرات",
   "active_sensors": "المستشعرات النشطة",
   "parking_spaces_count": "أماكن وقوف السيارات",
-  "occupied_spaces": "الأماكن المشغولة"
+  "occupied_spaces": "الأماكن المشغولة",
+  "showing_all_spaces": "عرض جميع {count} الأماكن",
+  "found_spaces_in_street": "تم العثور على {count} أماكن في {street}",
+  "show_parking_spaces_in_street": "عرض أماكن وقوف السيارات في {street}"
 }

@@ -138,5 +138,8 @@
   "total_sensors": "Total Sensors",
   "active_sensors": "Active Sensors",
   "parking_spaces_count": "Parking Spaces",
-  "occupied_spaces": "Occupied Spaces"
+  "occupied_spaces": "Occupied Spaces",
+  "showing_all_spaces": "Showing all {count} spaces",
+  "found_spaces_in_street": "Found {count} spaces in {street}",
+  "show_parking_spaces_in_street": "Show parking spaces in {street}"
 }

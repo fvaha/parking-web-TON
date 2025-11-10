@@ -15,7 +15,7 @@ import AdminService from './services/admin_service';
 import { LanguageService } from './services/language_service';
 import { TonPaymentService } from './services/ton_payment_service';
 import { TelegramWebAppService } from './services/telegram_webapp_service';
-import { MAPS_CONFIG, GOOGLE_MAPS_URLS } from './config/maps_config';
+import { MAPS_CONFIG, GOOGLE_MAPS_URLS, get_maps_api_key } from './config/maps_config';
 import { build_api_url, create_api_options } from './config/api_config';
 
 import type { Sensor, ParkingSpace, ActiveSession } from './types';
@@ -685,8 +685,8 @@ function App() {
 
   const handle_navigate = (coordinates: { lat: number; lng: number }) => {
     const user_location = MAPS_CONFIG.USER_LOCATION;
-    // Use the Google Maps API key from the old Flask project
-    const url = `${GOOGLE_MAPS_URLS.DIRECTIONS}?api=1&destination=${coordinates.lat},${coordinates.lng}&travelmode=driving&origin=${user_location.lat},${user_location.lng}&key=${MAPS_CONFIG.GOOGLE_MAPS_API_KEY}`;
+    // Use the Google Maps API key from environment variables
+    const url = `${GOOGLE_MAPS_URLS.DIRECTIONS}?api=1&destination=${coordinates.lat},${coordinates.lng}&travelmode=driving&origin=${user_location.lat},${user_location.lng}&key=${get_maps_api_key()}`;
     window.open(url, '_blank');
   };
 

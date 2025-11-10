@@ -56,15 +56,46 @@ try {
     error_log('File: ' . $e->getFile() . ' Line: ' . $e->getLine());
     error_log('Stack trace: ' . $e->getTraceAsString());
     
-    // Don't expose internal error details to client in production
+    // Check for common issues
+    $error_details = [];
     $error_message = 'Internal server error';
-    if (defined('DEBUG') && DEBUG) {
+    
+    // Check if SQLite3 extension is loaded
+    if (!extension_loaded('sqlite3')) {
+        $error_message = 'SQLite3 extension is not available';
+        $error_details['sqlite3_extension'] = false;
+    } else {
+        $error_details['sqlite3_extension'] = true;
+    }
+    
+    // Check database file path
+    $dbPath = __DIR__ . '/../database/parking.db';
+    $error_details['db_path'] = $dbPath;
+    $error_details['db_exists'] = file_exists($dbPath);
+    $error_details['db_readable'] = is_readable($dbPath);
+    $error_details['db_writable'] = is_writable($dbPath);
+    
+    // Check database directory
+    $dbDir = dirname($dbPath);
+    $error_details['db_dir_exists'] = is_dir($dbDir);
+    $error_details['db_dir_writable'] = is_writable($dbDir);
+    
+    // In development or if DEBUG is enabled, show more details
+    $is_debug = (defined('DEBUG') && DEBUG) || 
+                ($_SERVER['SERVER_NAME'] ?? '') === 'localhost' ||
+                strpos($_SERVER['HTTP_HOST'] ?? '', 'localhost') !== false;
+    
+    if ($is_debug) {
         $error_message = 'Database error: ' . $e->getMessage();
+        $error_details['exception_message'] = $e->getMessage();
+        $error_details['exception_file'] = $e->getFile();
+        $error_details['exception_line'] = $e->getLine();
     }
     
     echo json_encode([
         'success' => false,
-        'error' => $error_message
+        'error' => $error_message,
+        'details' => $error_details
     ], JSON_UNESCAPED_UNICODE);
 }
 ?>

@@ -138,5 +138,8 @@
   "total_sensors": "Capteurs Totaux",
   "active_sensors": "Capteurs Actifs",
   "parking_spaces_count": "Places de Stationnement",
-  "occupied_spaces": "Places Occupées"
+  "occupied_spaces": "Places Occupées",
+  "showing_all_spaces": "Affichage de toutes les {count} places",
+  "found_spaces_in_street": "{count} places trouvées dans {street}",
+  "show_parking_spaces_in_street": "Afficher les places de stationnement dans {street}"
 }

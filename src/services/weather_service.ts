@@ -26,14 +26,22 @@ export interface WeatherResponse {
 
 export class WeatherService {
   private static instance: WeatherService;
-  // TODO: Move to environment variable VITE_WEATHER_API_KEY for production
-  private api_key: string = '78b1d910a44248afbc8205927251908'; // weatherapi.com API key
+  private api_key: string;
   private base_url: string = 'https://api.weatherapi.com/v1';
   private cache_duration: number = 300000; // 5 minutes
   private cached_data: WeatherData | null = null;
   private last_fetch: number = 0;
 
-  private constructor() {}
+  private constructor() {
+    // Get API key from environment variable
+    const envKey = import.meta.env.VITE_WEATHER_API_KEY;
+    if (!envKey) {
+      console.warn('VITE_WEATHER_API_KEY is not set in environment variables. Weather data may not be available.');
+      this.api_key = '';
+    } else {
+      this.api_key = envKey;
+    }
+  }
 
   static getInstance(): WeatherService {
     if (!WeatherService.instance) {
@@ -48,6 +56,19 @@ export class WeatherService {
     // Return cached data if still valid
     if (this.cached_data && (now - this.last_fetch) < this.cache_duration) {
       return this.cached_data;
+    }
+
+    if (!this.api_key) {
+      console.warn('Weather API key is not configured. Returning fallback data.');
+      return {
+        temperature: 20,
+        humidity: 60,
+        air_quality: 75,
+        weather_condition: 'Partly cloudy',
+        weather_code: 1003,
+        timestamp: now,
+        is_day: true
+      };
     }
 
     try {

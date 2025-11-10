@@ -35,12 +35,25 @@ $env_file = __DIR__ . '/../.env';
 loadEnv($env_file);
 
 // Telegram Bot Configuration
-define('TELEGRAM_BOT_TOKEN', getenv('TELEGRAM_BOT_TOKEN') ?: 'YOUR_BOT_TOKEN_HERE');
+// SECURITY: Never hardcode bot tokens or API keys in this file. Always use environment variables.
+// The bot token is loaded from TELEGRAM_BOT_TOKEN environment variable.
+$telegram_bot_token = getenv('TELEGRAM_BOT_TOKEN');
+if (!$telegram_bot_token) {
+    error_log('ERROR: TELEGRAM_BOT_TOKEN is not set in environment variables');
+    die('TELEGRAM_BOT_TOKEN is required. Please set it in your .env file.');
+}
+define('TELEGRAM_BOT_TOKEN', $telegram_bot_token);
+
 define('TELEGRAM_WEBHOOK_URL', getenv('TELEGRAM_WEBHOOK_URL') ?: 'https://parkiraj.info/telegram-bot/webhook.php');
 define('DATABASE_PATH', __DIR__ . '/../database/parking.db');
 define('API_BASE_URL', 'https://parkiraj.info');
 define('WEB_APP_URL', 'https://parkiraj.info');
-define('WEATHER_API_KEY', 'YOUR_WEATHER_API_KEY');
+
+$weather_api_key = getenv('WEATHER_API_KEY');
+if (!$weather_api_key) {
+    error_log('WARNING: WEATHER_API_KEY is not set in environment variables');
+}
+define('WEATHER_API_KEY', $weather_api_key ?: '');
 // TON Wallet address for receiving payments
 // Bounceable format (EQ...) - recommended for receiving payments
 // User-friendly: UQBahXxgN8ErwSBkCGEyuPEzg3-PdeodtGTbpSzGNjKs6LXQ

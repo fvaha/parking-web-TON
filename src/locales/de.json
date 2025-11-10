@@ -138,5 +138,8 @@
   "total_sensors": "Gesamtsensoren",
   "active_sensors": "Aktive Sensoren",
   "parking_spaces_count": "Parkplätze",
-  "occupied_spaces": "Besetzte Plätze"
+  "occupied_spaces": "Besetzte Plätze",
+  "showing_all_spaces": "Zeige alle {count} Plätze",
+  "found_spaces_in_street": "{count} Plätze in {street} gefunden",
+  "show_parking_spaces_in_street": "Parkplätze in {street} anzeigen"
 }

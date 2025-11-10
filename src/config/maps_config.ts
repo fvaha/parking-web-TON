@@ -1,11 +1,7 @@
 // Google Maps API Configuration
+// SECURITY: Never hardcode API keys in this file. Always use environment variables.
+// The API key is loaded from VITE_GOOGLE_MAPS_API_KEY environment variable.
 export const MAPS_CONFIG = {
-  // Using the Google Maps API key from the old Flask project
-  GOOGLE_MAPS_API_KEY: 'YOUR_GOOGLE_MAPS_API_KEY',
-  
-  // Alternative key found in other templates
-  GOOGLE_MAPS_API_KEY_ALT: 'YOUR_GOOGLE_MAPS_API_KEY_ALT',
-  
   // Map center coordinates (from the old project)
   DEFAULT_CENTER: {
     lat: 43.1422626446047,
@@ -24,8 +20,12 @@ export const MAPS_CONFIG = {
 
 // Environment-based configuration
 export const get_maps_api_key = (): string => {
-  // Check if environment variable is set, otherwise use the default key
-  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || MAPS_CONFIG.GOOGLE_MAPS_API_KEY;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    console.error('VITE_GOOGLE_MAPS_API_KEY is not set in environment variables');
+    throw new Error('Google Maps API key is not configured. Please set VITE_GOOGLE_MAPS_API_KEY in your .env file.');
+  }
+  return apiKey;
 };
 
 // Google Maps URLs

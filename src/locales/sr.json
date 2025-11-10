@@ -138,5 +138,8 @@
   "total_sensors": "Ukupno Senzora",
   "active_sensors": "Aktivni Senzori",
   "parking_spaces_count": "Parking Mesta",
-  "occupied_spaces": "Zauzeta Mesta"
+  "occupied_spaces": "Zauzeta Mesta",
+  "showing_all_spaces": "Prikaz svih {count} mesta",
+  "found_spaces_in_street": "Pronađeno {count} mesta u {street}",
+  "show_parking_spaces_in_street": "Prikaži parking mesta u {street}"
 }

@@ -16,10 +16,23 @@ function set_cors_headers() {
     ];
 
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    
+    // Check if request is from Telegram Web App
+    $is_telegram_webapp = (
+        strpos($user_agent, 'Telegram') !== false ||
+        strpos($referer, 'telegram.org') !== false ||
+        strpos($referer, 't.me') !== false ||
+        empty($origin) // Telegram Web Apps sometimes send null origin
+    );
     
     // Check if the origin is in our allowed list (exact match only)
     if (in_array($origin, $allowed_origins)) {
         header('Access-Control-Allow-Origin: ' . $origin);
+    } elseif ($is_telegram_webapp && strpos($referer, 'parkiraj.info') !== false) {
+        // Allow Telegram Web App requests from our domain
+        header('Access-Control-Allow-Origin: https://parkiraj.info');
     } else {
         // For development, allow localhost if no origin specified
         if (empty($origin) && ($_SERVER['REMOTE_ADDR'] ?? '') === '127.0.0.1') {
