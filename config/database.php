@@ -14,7 +14,33 @@ class Database {
         }
         
         try {
+            // Check if SQLite3 extension is available
+            if (!extension_loaded('sqlite3')) {
+                throw new Exception("SQLite3 extension is not loaded. Please install php-sqlite3 extension.");
+            }
+            
+            // Check if database file exists or can be created
+            if (!file_exists($dbPath)) {
+                // Try to create the database file
+                $dbDir = dirname($dbPath);
+                if (!is_writable($dbDir)) {
+                    throw new Exception("Database directory is not writable: {$dbDir}");
+                }
+            } else {
+                // Check if existing database file is readable/writable
+                if (!is_readable($dbPath)) {
+                    throw new Exception("Database file is not readable: {$dbPath}");
+                }
+                if (!is_writable($dbPath)) {
+                    error_log("Warning: Database file is not writable: {$dbPath}");
+                }
+            }
+            
             $this->db = new SQLite3($dbPath);
+            if (!$this->db) {
+                throw new Exception("Failed to open database: " . SQLite3::lastErrorMsg());
+            }
+            
             $this->db->enableExceptions(true);
             
             // Enable WAL mode for better concurrency (prevents "database is locked" errors)
@@ -29,6 +55,13 @@ class Database {
             $this->createTables();
         } catch (Exception $e) {
             error_log("Database initialization error: " . $e->getMessage());
+            error_log("Database path: " . $dbPath);
+            error_log("Database directory exists: " . (is_dir(dirname($dbPath)) ? 'yes' : 'no'));
+            error_log("Database directory writable: " . (is_writable(dirname($dbPath)) ? 'yes' : 'no'));
+            if (file_exists($dbPath)) {
+                error_log("Database file readable: " . (is_readable($dbPath) ? 'yes' : 'no'));
+                error_log("Database file writable: " . (is_writable($dbPath) ? 'yes' : 'no'));
+            }
             throw new Exception("Failed to initialize database: " . $e->getMessage());
         }
     }
@@ -1990,23 +2023,51 @@ class Database {
     }
     
     public function getTelegramUserByTelegramId($telegram_id) {
-        $stmt = $this->db->prepare("
-            SELECT * FROM telegram_users WHERE telegram_user_id = ? AND is_active = 1
-        ");
-        $stmt->bindValue(1, $telegram_id);
-        $result = $stmt->execute();
-        
-        return $result->fetchArray(SQLITE3_ASSOC);
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM telegram_users WHERE telegram_user_id = ? AND is_active = 1
+            ");
+            if (!$stmt) {
+                error_log("Database::getTelegramUserByTelegramId: Failed to prepare statement - " . $this->db->lastErrorMsg());
+                return false;
+            }
+            $stmt->bindValue(1, $telegram_id);
+            $result = $stmt->execute();
+            
+            if (!$result) {
+                error_log("Database::getTelegramUserByTelegramId: Failed to execute statement - " . $this->db->lastErrorMsg());
+                return false;
+            }
+            
+            return $result->fetchArray(SQLITE3_ASSOC);
+        } catch (Exception $e) {
+            error_log("Database::getTelegramUserByTelegramId: Exception - " . $e->getMessage());
+            return false;
+        }
     }
     
     public function getTelegramUserByLicensePlate($license_plate) {
-        $stmt = $this->db->prepare("
-            SELECT * FROM telegram_users WHERE license_plate = ? AND is_active = 1
-        ");
-        $stmt->bindValue(1, $license_plate);
-        $result = $stmt->execute();
-        
-        return $result->fetchArray(SQLITE3_ASSOC);
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM telegram_users WHERE license_plate = ? AND is_active = 1
+            ");
+            if (!$stmt) {
+                error_log("Database::getTelegramUserByLicensePlate: Failed to prepare statement - " . $this->db->lastErrorMsg());
+                return false;
+            }
+            $stmt->bindValue(1, $license_plate);
+            $result = $stmt->execute();
+            
+            if (!$result) {
+                error_log("Database::getTelegramUserByLicensePlate: Failed to execute statement - " . $this->db->lastErrorMsg());
+                return false;
+            }
+            
+            return $result->fetchArray(SQLITE3_ASSOC);
+        } catch (Exception $e) {
+            error_log("Database::getTelegramUserByLicensePlate: Exception - " . $e->getMessage());
+            return false;
+        }
     }
     
     public function updateTelegramUserWallet($telegram_user_id, $wallet_address) {

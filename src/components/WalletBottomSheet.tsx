@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { TonConnectUI } from '@tonconnect/ui-react';
 import { Wallet, Plus, X, ExternalLink } from 'lucide-react';
+import { TonPaymentService } from '../services/ton_payment_service';
 
 interface WalletBottomSheetProps {
   is_open: boolean;
   on_close: () => void;
   wallet_connected: boolean;
-  on_wallet_connected: () => void;
+  on_wallet_connected: (wallet_address?: string) => void;
 }
 
 export const WalletBottomSheet: React.FC<WalletBottomSheetProps> = ({
@@ -22,50 +23,141 @@ export const WalletBottomSheet: React.FC<WalletBottomSheetProps> = ({
   const [wallet_address, set_wallet_address] = useState<string | null>(null);
   const [is_connecting, set_is_connecting] = useState(false);
   const [is_disconnecting, set_is_disconnecting] = useState(false);
+  const wallet_was_connected_ref = useRef<boolean>(false); // Track if wallet was already connected when modal opened
+  const on_status_change_timeout_ref = useRef<ReturnType<typeof setTimeout> | null>(null); // Debounce onStatusChange callbacks
 
   useEffect(() => {
     if (is_open) {
-      // Initialize TonConnectUI when sheet opens
-      const init_ton_connect = async () => {
-        try {
-          // Create a temporary button element for TonConnectUI
-          let button_element = document.getElementById('wallet-connect-button-temp');
-          if (!button_element) {
-            button_element = document.createElement('div');
-            button_element.id = 'wallet-connect-button-temp';
-            button_element.style.display = 'none';
-            document.body.appendChild(button_element);
+      // Try to use the same TonConnectUI instance from TonPaymentService
+      const ton_payment_service = TonPaymentService.getInstance();
+      ton_payment_service.ensureInitialized();
+      
+      const shared_ui = ton_payment_service.getTonConnectUI();
+      
+      if (shared_ui) {
+        // Use the shared instance
+        console.log('WalletBottomSheet: Using shared TonConnectUI instance');
+        set_ton_connect_ui(shared_ui);
+        
+        // Check current wallet status
+        if (shared_ui.wallet) {
+          const address = shared_ui.wallet.account.address;
+          set_wallet_address(address);
+          wallet_was_connected_ref.current = true; // Mark that wallet was already connected
+          console.log('WalletBottomSheet: Wallet already connected:', address);
+          // Update parent state but DON'T close modal - let user see the options
+          on_wallet_connected(address);
+        }
+        
+        // Listen for wallet connection changes (with debounce to prevent multiple rapid calls)
+        shared_ui.onStatusChange((wallet) => {
+          // Debounce: Clear any pending callback
+          if (on_status_change_timeout_ref.current) {
+            clearTimeout(on_status_change_timeout_ref.current);
           }
-
-          const ui = new TonConnectUI({
-            manifestUrl: `${window.location.origin}/tonconnect-manifest.json`,
-            buttonRootId: 'wallet-connect-button-temp'
-          });
           
-          // Listen for wallet connection changes
-          ui.onStatusChange((wallet) => {
-            console.log('Wallet status changed:', wallet);
+          // Schedule callback in next tick to debounce rapid calls
+          on_status_change_timeout_ref.current = setTimeout(() => {
+            console.log('Wallet status changed in WalletBottomSheet (shared):', wallet);
             if (wallet) {
-              set_wallet_address(wallet.account.address);
-              on_wallet_connected();
+              const address = wallet.account.address;
+              set_wallet_address(address);
+              console.log('WalletBottomSheet: Wallet connected via onStatusChange (shared):', address);
+              // Pass wallet address directly to parent callback
+              on_wallet_connected(address);
+              // Close modal after wallet is connected (with small delay to ensure state updates)
+              // Only close if wallet was just connected (not if it was already connected when modal opened)
+              if (!wallet_was_connected_ref.current) {
+                setTimeout(() => {
+                  on_close();
+                }, 1500); // Give user time to see the connection
+              }
             } else {
               set_wallet_address(null);
-              on_wallet_connected();
+              on_wallet_connected(); // No address = disconnected
             }
-          });
+            on_status_change_timeout_ref.current = null;
+          }, 100); // Small delay to debounce rapid calls
+        });
+      } else {
+        // Fallback: Create temporary instance if shared one doesn't exist
+        const init_ton_connect = async () => {
+          try {
+            // Create a temporary button element for TonConnectUI
+            let button_element = document.getElementById('wallet-connect-button-temp');
+            if (!button_element) {
+              button_element = document.createElement('div');
+              button_element.id = 'wallet-connect-button-temp';
+              button_element.style.display = 'none';
+              document.body.appendChild(button_element);
+            }
 
-          // Check current wallet status
-          if (ui.wallet) {
-            set_wallet_address(ui.wallet.account.address);
+            const ui = new TonConnectUI({
+              manifestUrl: `${window.location.origin}/tonconnect-manifest.json`,
+              buttonRootId: 'wallet-connect-button-temp'
+            });
+            
+            // Listen for wallet connection changes (with debounce to prevent multiple rapid calls)
+            ui.onStatusChange((wallet) => {
+              // Debounce: Clear any pending callback
+              if (on_status_change_timeout_ref.current) {
+                clearTimeout(on_status_change_timeout_ref.current);
+              }
+              
+              // Schedule callback in next tick to debounce rapid calls
+              on_status_change_timeout_ref.current = setTimeout(() => {
+                console.log('Wallet status changed in WalletBottomSheet (fallback):', wallet);
+                if (wallet) {
+                  const address = wallet.account.address;
+                  set_wallet_address(address);
+                  console.log('WalletBottomSheet: Wallet connected via onStatusChange (fallback):', address);
+                  
+                  // IMPORTANT: Pass wallet address directly to parent callback
+                  // This allows App.tsx to set wallet_connected state immediately without checking localStorage
+                  on_wallet_connected(address);
+                  
+                  // IMPORTANT: Save this fallback instance to TonPaymentService so processPayment can use it
+                  const ton_payment_service = TonPaymentService.getInstance();
+                  const shared_ui = ton_payment_service.getTonConnectUI();
+                  if (!shared_ui) {
+                    // If shared instance doesn't exist, save the fallback instance
+                    console.log('WalletBottomSheet: Shared instance not found, saving fallback instance to TonPaymentService');
+                    ton_payment_service.setTonConnectUI(ui);
+                  }
+                  
+                  // Close modal after wallet is connected (with small delay to ensure state updates)
+                  // Only close if wallet was just connected (not if it was already connected when modal opened)
+                  if (!wallet_was_connected_ref.current) {
+                    setTimeout(() => {
+                      on_close();
+                    }, 1500); // Give user time to see the connection
+                  }
+                } else {
+                  set_wallet_address(null);
+                  on_wallet_connected(); // No address = disconnected
+                }
+                on_status_change_timeout_ref.current = null;
+              }, 100); // Small delay to debounce rapid calls
+            });
+
+            // Check current wallet status
+            if (ui.wallet) {
+              const address = ui.wallet.account.address;
+              set_wallet_address(address);
+              wallet_was_connected_ref.current = true; // Mark that wallet was already connected
+              console.log('WalletBottomSheet: Wallet already connected (fallback):', address);
+              // Update parent state but DON'T close modal - let user see the options
+              on_wallet_connected(address);
+            }
+
+            set_ton_connect_ui(ui);
+          } catch (error) {
+            console.error('Failed to initialize TON Connect:', error);
           }
+        };
 
-          set_ton_connect_ui(ui);
-        } catch (error) {
-          console.error('Failed to initialize TON Connect:', error);
-        }
-      };
-
-      init_ton_connect();
+        init_ton_connect();
+      }
     }
 
     return () => {
@@ -73,6 +165,11 @@ export const WalletBottomSheet: React.FC<WalletBottomSheetProps> = ({
       const button_element = document.getElementById('wallet-connect-button-temp');
       if (button_element && button_element.parentNode) {
         button_element.parentNode.removeChild(button_element);
+      }
+      // Cleanup: clear any pending onStatusChange timeout
+      if (on_status_change_timeout_ref.current) {
+        clearTimeout(on_status_change_timeout_ref.current);
+        on_status_change_timeout_ref.current = null;
       }
     };
   }, [is_open, on_wallet_connected]);
@@ -159,34 +256,51 @@ export const WalletBottomSheet: React.FC<WalletBottomSheetProps> = ({
   const handle_connect_wallet = async () => {
     if (!ton_connect_ui) return;
     
-    // Check if wallet is already connected
+    // Check if wallet is already connected BEFORE opening modal
     const current_wallet = ton_connect_ui.wallet;
-    if (current_wallet) {
-      console.log('Wallet already connected');
-      set_wallet_address(current_wallet.account.address);
-      on_wallet_connected();
+    if (current_wallet && current_wallet.account && current_wallet.account.address) {
+      console.log('Wallet already connected, updating state - NOT opening modal');
+      const address = current_wallet.account.address;
+      set_wallet_address(address);
+      // Update parent state immediately with wallet address
+      on_wallet_connected(address);
+      // DON'T open modal or close it - wallet is already connected, user can see it
+      // They can manually close or disconnect if needed
       return;
     }
     
     set_is_connecting(true);
     try {
-      // Open wallet connection modal
+      // Only open modal if wallet is NOT already connected
+      console.log('Opening TonConnectUI modal - wallet not connected yet');
       await ton_connect_ui.openModal();
+      // After modal closes, check if wallet was connected
+      setTimeout(() => {
+        const wallet_after_modal = ton_connect_ui?.wallet;
+        if (wallet_after_modal && wallet_after_modal.account) {
+          const address = wallet_after_modal.account.address;
+          set_wallet_address(address);
+          on_wallet_connected(address);
+        }
+        set_is_connecting(false);
+      }, 500);
     } catch (error: any) {
       console.error('Failed to connect wallet:', error);
-      // Check if error is about wallet already being connected
-      if (error?.message?.includes('already connected')) {
-        // Wallet is already connected, just update state
-        const wallet = ton_connect_ui.wallet;
-        if (wallet && 'account' in wallet) {
-          set_wallet_address((wallet as any).account.address);
-          on_wallet_connected();
-        }
-      } else {
-        alert('Failed to connect wallet. Please try again.');
-      }
-    } finally {
       set_is_connecting(false);
+          // Check if error is about wallet already being connected
+          if (error?.message?.includes('already connected') || error?.message?.includes('already connected')) {
+            // Wallet is already connected, just update state
+            const wallet = ton_connect_ui.wallet;
+            if (wallet && 'account' in wallet) {
+              const address = (wallet as any).account.address;
+              set_wallet_address(address);
+              console.log('WalletBottomSheet: Wallet already connected (error handler):', address);
+              on_wallet_connected(address);
+              // DON'T close modal - let user see that wallet is connected
+            }
+          } else {
+            alert('Failed to connect wallet. Please try again.');
+          }
     }
   };
 

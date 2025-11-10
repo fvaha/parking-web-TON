@@ -319,24 +319,49 @@ export const AdminDashboard: React.FC = () => {
 
   // Helper function to parse coordinates from various text formats
   const parse_coordinates_from_text = (text: string) => {
+    // Try multiple formats:
+    // 1. "43.140000, 20.517500" or "43.140000,20.517500"
+    const comma_match = text.match(/([0-9.-]+)\s*,\s*([0-9.-]+)/);
+    if (comma_match) {
+      const lat = parseFloat(comma_match[1]);
+      const lng = parseFloat(comma_match[2]);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { lat, lng };
+      }
+    }
+    
+    // 2. "lat: 43.140000 lng: 20.517500" or "lat:43.140000 lng:20.517500"
     const lat_match = text.match(/lat[:\s]*([0-9.-]+)/i);
     const lng_match = text.match(/lng[:\s]*([0-9.-]+)/i);
     
     if (lat_match && lng_match) {
       const lat = parseFloat(lat_match[1]);
       const lng = parseFloat(lng_match[1]);
-      return { lat, lng };
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { lat, lng };
+      }
     } else if (lat_match) {
       const lat = parseFloat(lat_match[1]);
-      if (new_sensor.coordinates?.lng !== undefined) {
+      if (!isNaN(lat) && new_sensor.coordinates?.lng !== undefined) {
         return { lat, lng: new_sensor.coordinates.lng };
       }
     } else if (lng_match) {
       const lng = parseFloat(lng_match[1]);
-      if (new_sensor.coordinates?.lat !== undefined) {
+      if (!isNaN(lng) && new_sensor.coordinates?.lat !== undefined) {
         return { lat: new_sensor.coordinates.lat, lng };
       }
     }
+    
+    // 3. Try to find two numbers separated by space or comma
+    const numbers = text.match(/([0-9.-]+)/g);
+    if (numbers && numbers.length >= 2) {
+      const lat = parseFloat(numbers[0]);
+      const lng = parseFloat(numbers[1]);
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+    
     return null;
   };
 
@@ -419,19 +444,28 @@ export const AdminDashboard: React.FC = () => {
     try {
       if (editing_sensor) {
         // Update existing sensor
+        // Convert ID to number if it's a string
+        const sensor_id = typeof editing_sensor.id === 'string' ? parseInt(editing_sensor.id, 10) : editing_sensor.id;
+        
+        if (isNaN(sensor_id)) {
+          alert('Invalid sensor ID');
+          return;
+        }
+        
         const response = await fetch(build_api_url(`/api/sensors.php`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify({
-            id: editing_sensor.id,
+            id: sensor_id,
             name: new_sensor.name,
             wpsd_id: new_sensor.wpsd_id,
             wdc_id: new_sensor.wdc_id || '',
             street_name: new_sensor.street_name,
-            latitude: new_sensor.coordinates.lat,
-            longitude: new_sensor.coordinates.lng,
+            latitude: parseFloat(new_sensor.coordinates.lat.toString()),
+            longitude: parseFloat(new_sensor.coordinates.lng.toString()),
             zone_id: new_sensor.zone_id || null
           })
         });
@@ -449,6 +483,20 @@ export const AdminDashboard: React.FC = () => {
             
             // Close form
             close_sensor_form();
+            
+            // Show success message
+            alert('Sensor updated successfully');
+          } else {
+            // Show error from API
+            alert(result.error || 'Failed to update sensor');
+          }
+        } else {
+          // Try to parse error response
+          try {
+            const errorData = await response.json();
+            alert(errorData.error || `Failed to update sensor: ${response.status} ${response.statusText}`);
+          } catch {
+            alert(`Failed to update sensor: ${response.status} ${response.statusText}`);
           }
         }
       } else {
@@ -458,13 +506,14 @@ export const AdminDashboard: React.FC = () => {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify({
             name: new_sensor.name,
             wpsd_id: new_sensor.wpsd_id,
-            wdc_id: new_sensor.wpsd_id || '',
+            wdc_id: new_sensor.wdc_id || '',
             street_name: new_sensor.street_name,
-            latitude: new_sensor.coordinates.lat,
-            longitude: new_sensor.coordinates.lng,
+            latitude: parseFloat(new_sensor.coordinates.lat.toString()),
+            longitude: parseFloat(new_sensor.coordinates.lng.toString()),
             zone_id: new_sensor.zone_id || null
           })
         });
@@ -477,6 +526,20 @@ export const AdminDashboard: React.FC = () => {
             
             // Close form
             close_sensor_form();
+            
+            // Show success message
+            alert('Sensor added successfully');
+          } else {
+            // Show error from API
+            alert(result.error || 'Failed to add sensor');
+          }
+        } else {
+          // Try to parse error response
+          try {
+            const errorData = await response.json();
+            alert(errorData.error || `Failed to add sensor: ${response.status} ${response.statusText}`);
+          } catch {
+            alert(`Failed to add sensor: ${response.status} ${response.statusText}`);
           }
         }
       }
@@ -2269,12 +2332,23 @@ export const AdminDashboard: React.FC = () => {
                       onPaste={(e) => {
                         e.preventDefault();
                         const pasted_text = e.clipboardData.getData('text');
-                        const lat_value = parseFloat(pasted_text);
-                        if (!isNaN(lat_value)) {
+                        // Try to parse both coordinates from pasted text
+                        const coords = parse_coordinates_from_text(pasted_text);
+                        if (coords) {
+                          // If both coordinates found, set both
                           set_new_sensor(prev => ({
                             ...prev,
-                            coordinates: { ...prev.coordinates!, lat: lat_value }
+                            coordinates: coords
                           }));
+                        } else {
+                          // If only one number, try to parse as latitude
+                          const lat_value = parseFloat(pasted_text);
+                          if (!isNaN(lat_value)) {
+                            set_new_sensor(prev => ({
+                              ...prev,
+                              coordinates: { ...prev.coordinates!, lat: lat_value }
+                            }));
+                          }
                         }
                       }}
                       style={{
@@ -2312,12 +2386,23 @@ export const AdminDashboard: React.FC = () => {
                       onPaste={(e) => {
                         e.preventDefault();
                         const pasted_text = e.clipboardData.getData('text');
-                        const lng_value = parseFloat(pasted_text);
-                        if (!isNaN(lng_value)) {
+                        // Try to parse both coordinates from pasted text
+                        const coords = parse_coordinates_from_text(pasted_text);
+                        if (coords) {
+                          // If both coordinates found, set both
                           set_new_sensor(prev => ({
                             ...prev,
-                            coordinates: { ...prev.coordinates!, lng: lng_value }
+                            coordinates: coords
                           }));
+                        } else {
+                          // If only one number, try to parse as longitude
+                          const lng_value = parseFloat(pasted_text);
+                          if (!isNaN(lng_value)) {
+                            set_new_sensor(prev => ({
+                              ...prev,
+                              coordinates: { ...prev.coordinates!, lng: lng_value }
+                            }));
+                          }
                         }
                       }}
                       style={{

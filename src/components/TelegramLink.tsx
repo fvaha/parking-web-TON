@@ -53,15 +53,17 @@ export const TelegramLink: React.FC<TelegramLinkProps> = ({ license_plate, on_co
     try {
       const response = await fetch(build_api_url(`/api/telegram-users.php?license_plate=${encodeURIComponent(normalized_plate)}`));
       
-      if (!response.ok) {
-        // If 404 or other error, user is not linked
+      // Try to parse response even if status is not OK
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If response is not JSON, treat as not linked
         set_is_linked(false);
         set_telegram_username(null);
         telegramLinkCache.set(normalized_plate, { linked: false, username: null });
         return;
       }
-      
-      const data = await response.json();
       
       if (data.success && data.data) {
         set_is_linked(true);
@@ -74,9 +76,10 @@ export const TelegramLink: React.FC<TelegramLinkProps> = ({ license_plate, on_co
         telegramLinkCache.set(normalized_plate, { linked: false, username: null });
       }
     } catch (error) {
-      console.error('Error checking Telegram link:', error);
+      // Silently handle errors - just treat as not linked
       set_is_linked(false);
       set_telegram_username(null);
+      telegramLinkCache.set(normalized_plate, { linked: false, username: null });
     }
   };
 

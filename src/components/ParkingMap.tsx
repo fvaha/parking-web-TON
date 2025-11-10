@@ -530,11 +530,11 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
       };
       
       try {
-        // Use a lower zoom level to show all parking spaces
+        // Use a much lower zoom level to show more area (zoomed out)
         const new_map = L.map(container, {
           attributionControl: false, // Remove Leaflet attribution
           preferCanvas: false // Use DOM rendering for better compatibility
-        }).setView([center_coords.lat, center_coords.lng], MAPS_CONFIG.DEFAULT_ZOOM - 3); // Zoom out to show all streets
+        }).setView([center_coords.lat, center_coords.lng], 15); // Zoom out to show more area (lower number = more zoomed out)
         
         // Add initial tile layer based on map_style
         const initial_tile_config = TILE_LAYERS[map_style];
@@ -585,7 +585,7 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
         setTimeout(invalidateMap, 500);
 
         // Also invalidate when window resizes (with debounce)
-        let resizeTimer: NodeJS.Timeout | null = null;
+        let resizeTimer: ReturnType<typeof setTimeout> | null = null;
         const handleResize = () => {
           if (resizeTimer) {
             clearTimeout(resizeTimer);
@@ -795,7 +795,7 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
         });
 
         // Add routing option on marker double-click (to avoid conflict with single click)
-        let clickTimer: NodeJS.Timeout | null = null;
+        let clickTimer: ReturnType<typeof setTimeout> | null = null;
         marker.on('dblclick', () => {
           if (user_location && show_routing_options_ref.current) {
             const destination = L.latLng(center_lat, center_lng);
