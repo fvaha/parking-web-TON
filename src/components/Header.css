@@ -8,7 +8,7 @@
   width: 100% !important;
   padding: 0 !important;
   margin: 0 !important;
-  transition: min-height 0.3s ease !important;
+  transition: min-height 0.18s ease !important;
   z-index: 1 !important;
 }
 
@@ -347,6 +347,9 @@
 .weather-icon-svg {
   flex-shrink: 0 !important;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1)) !important;
+  /* Force rendered size for PNG icon */
+  width: 20px !important;
+  height: 20px !important;
 }
 
 .weather-value-horizontal {
@@ -528,8 +531,8 @@ html .language-menu-portal {
   }
   
   .weather-icon-svg {
-    width: 16px !important;
-    height: 16px !important;
+    width: 20px !important;
+    height: 20px !important;
   }
   
   .header-license-section {
@@ -551,8 +554,8 @@ html .language-menu-portal {
   }
   
   .weather-icon-svg {
-    width: 14px !important;
-    height: 14px !important;
+    width: 20px !important;
+    height: 20px !important;
   }
   
   /* Collapsed header mobile styles */

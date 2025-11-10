@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Globe, ChevronDown, Edit3, Thermometer, CloudRain, Activity, ChevronUp, ChevronDown as ChevronDownIcon, Send } from 'lucide-react';
+import { Globe, ChevronDown, Edit3, Thermometer, CloudRain, ChevronUp, ChevronDown as ChevronDownIcon, Send } from 'lucide-react';
 import { LanguageService } from '../services/language_service';
 import { WeatherService } from '../services/weather_service';
 import WeatherBackground from './WeatherBackground';
@@ -253,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
       backgroundColor: `rgba(${red}, ${green}, ${blue}, ${opacity})`,
       zIndex: 1,
       pointerEvents: 'none',
-      transition: 'background-color 2s ease-in-out',
+      transition: 'background-color 0.4s ease-in-out',
     };
   };
 
@@ -324,7 +324,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                 color: get_text_color(),
                 backdropFilter: 'blur(10px)',
                 whiteSpace: 'nowrap',
-                transition: 'background-color 2s ease-in-out, color 2s ease-in-out',
+                transition: 'background-color 0.4s ease-in-out, color 0.4s ease-in-out',
                 flexShrink: 0,
               }}>
                 {license_plate}
@@ -342,23 +342,35 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                 backgroundColor: time_shade > 0.5 ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.16)',
                 borderRadius: '6px',
                 backdropFilter: 'blur(10px)',
-                transition: 'background-color 2s ease-in-out',
+                transition: 'background-color 0.4s ease-in-out',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <Thermometer size={14} style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 2s ease-in-out', textShadow: 'none' }}>
+                  <img src="/tem-icon.png" alt="Temp" className="weather-icon-svg" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none' }}>
                     {Math.round(weather_data.temperature)}°C
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <CloudRain size={14} style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 2s ease-in-out', textShadow: 'none' }}>
+                  <img src="/rain-icon.png" alt="Humidity" className="weather-icon-svg" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none' }}>
                     {weather_data.humidity}%
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <Activity size={14} style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 2s ease-in-out', textShadow: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <img
+                    src="/aqi-icon.png"
+                    alt="AQI"
+                    width={24}
+                    height={24}
+                    style={{
+                      display: 'block',
+                      objectFit: 'contain',
+                      imageRendering: 'auto',
+                      filter: time_shade > 0.5 ? 'brightness(1.2)' : 'none',
+                      transition: 'filter 0.4s ease-in-out',
+                    }}
+                  />
+                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none' }}>
                     {weather_data.air_quality}
                   </span>
                 </div>
@@ -529,7 +541,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                   }}
                   title="Show Telegram Notifications"
                 >
-                  <Send size={16} style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
+                  <Send size={16} style={{ color: get_icon_color(), transition: 'color 0.4s ease-in-out' }} />
                 </button>
               )}
 
@@ -568,7 +580,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                 }}
                 title="Expand header"
               >
-                <ChevronDownIcon size={16} style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
+                <ChevronDownIcon size={16} style={{ color: get_icon_color(), transition: 'color 0.4s ease-in-out' }} />
               </button>
             </div>
           </div>
@@ -764,7 +776,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
               }}
               title="Show Telegram Notifications"
             >
-              <Send size={18} style={{ color: get_text_color(), transition: 'color 2s ease-in-out' }} />
+              <Send size={18} style={{ color: get_text_color(), transition: 'color 0.4s ease-in-out' }} />
             </button>
           )}
 
@@ -802,7 +814,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
             }}
             title="Collapse header"
           >
-            <ChevronUp size={18} style={{ color: get_text_color(), transition: 'color 2s ease-in-out' }} />
+            <ChevronUp size={18} style={{ color: get_text_color(), transition: 'color 0.4s ease-in-out' }} />
           </button>
       </div>
       
@@ -822,7 +834,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
         <div className="header-middle-row">
           <div className="header-license-section">
             <div className="header-license-container">
-              <div className="license-plate" style={{ color: get_text_color(), transition: 'color 2s ease-in-out' }}>
+              <div className="license-plate" style={{ color: get_text_color(), transition: 'color 0.4s ease-in-out' }}>
                 {license_plate || 'ABC-123'}
               </div>
               <button 
@@ -846,16 +858,29 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
             ) : weather_data ? (
               <div className="weather-info-horizontal">
                 <div className="weather-item-horizontal">
-                  <Thermometer size={18} className="weather-icon-svg" style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
-                  <span className="weather-value-horizontal" style={{ color: get_text_color(), transition: 'color 2s ease-in-out' }}>{Math.round(weather_data.temperature)}°C</span>
+                  <img src="/tem-icon.png" alt="Temp" className="weather-icon-svg" />
+                  <span className="weather-value-horizontal" style={{ color: get_text_color(), transition: 'color 0.4s ease-in-out' }}>{Math.round(weather_data.temperature)}°C</span>
                 </div>
                 <div className="weather-item-horizontal">
-                  <CloudRain size={18} className="weather-icon-svg" style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
-                  <span className="weather-value-horizontal" style={{ color: get_text_color(), transition: 'color 2s ease-in-out' }}>{weather_data.humidity}%</span>
+                  <img src="/rain-icon.png" alt="Humidity" className="weather-icon-svg" />
+                  <span className="weather-value-horizontal" style={{ color: get_text_color(), transition: 'color 0.4s ease-in-out' }}>{weather_data.humidity}%</span>
                 </div>
                 <div className="weather-item-horizontal">
-                  <Activity size={18} className="weather-icon-svg" style={{ color: get_icon_color(), transition: 'color 2s ease-in-out' }} />
-                  <span className="weather-value-horizontal" style={{ color: get_text_color(), transition: 'color 2s ease-in-out' }}>{weather_data.air_quality}</span>
+                  <img
+                    src="/aqi-icon.png"
+                    alt="AQI"
+                    width={24}
+                    height={24}
+                    className="weather-icon-svg"
+                    style={{
+                      display: 'block',
+                      objectFit: 'contain',
+                      imageRendering: 'auto',
+                      filter: time_shade > 0.5 ? 'brightness(1.2)' : 'none',
+                      transition: 'filter 0.4s ease-in-out',
+                    }}
+                  />
+                  <span className="weather-value-horizontal" style={{ color: get_text_color(), transition: 'color 0.4s ease-in-out' }}>{weather_data.air_quality}</span>
                 </div>
               </div>
             ) : null}

@@ -83,7 +83,8 @@ try {
     // In development or if DEBUG is enabled, show more details
     $is_debug = (defined('DEBUG') && DEBUG) || 
                 ($_SERVER['SERVER_NAME'] ?? '') === 'localhost' ||
-                strpos($_SERVER['HTTP_HOST'] ?? '', 'localhost') !== false;
+                strpos($_SERVER['HTTP_HOST'] ?? '', 'localhost') !== false ||
+                (isset($_GET['debug']) && ($_GET['debug'] === '1' || $_GET['debug'] === 'true'));
     
     if ($is_debug) {
         $error_message = 'Database error: ' . $e->getMessage();

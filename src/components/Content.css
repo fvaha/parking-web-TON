@@ -58,7 +58,7 @@
   width: 100%;
   max-width: 100vw;
   box-sizing: border-box;
-  min-height: calc(100vh - 200px);
+  min-height: calc(100vh - 120px);
   margin: 0;
   padding: 0;
   display: flex;
@@ -81,7 +81,7 @@
 
 .map-container {
   width: 100% !important;
-  height: calc(100vh - 200px) !important;
+  height: calc(100vh - 120px) !important;
   min-height: 500px !important;
   border-radius: 0;
   overflow: hidden;
@@ -1535,11 +1535,11 @@
 }
 
 .map-view {
-  min-height: calc(100vh - 200px);
+  min-height: calc(100vh - 120px);
 }
 
 .map-container {
-  height: calc(100vh - 200px);
+  height: calc(100vh - 120px);
   min-height: 400px;
   margin: 0;
 }
@@ -1694,7 +1694,7 @@
   }
   
   .map-container {
-    height: calc(100vh - 200px);
+    height: calc(100vh - 120px);
     min-height: 500px;
     margin: 0;
   }
@@ -1844,11 +1844,11 @@
 @media (min-width: 1024px) {
   .app-main {
     padding: 0;
-    max-width: 1200px;
+    max-width: 100%;
   }
   
   .map-container {
-    height: calc(100vh - 200px);
+    height: calc(100vh - 120px);
     min-height: 600px;
     margin: 0;
   }
@@ -1882,11 +1882,11 @@
 @media (min-width: 1440px) {
   .app-main {
     padding: 0;
-    max-width: 1400px;
+    max-width: 100%;
   }
   
   .map-container {
-    height: calc(100vh - 200px);
+    height: calc(100vh - 120px);
     min-height: 700px;
   }
   
