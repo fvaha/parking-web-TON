@@ -8,6 +8,8 @@ interface TelegramLinkProps {
   on_collapsed_change?: (collapsed: boolean) => void;
 }
 
+const telegramLinkCache = new Map<string, { linked: boolean; username: string | null }>();
+
 export const TelegramLink: React.FC<TelegramLinkProps> = ({ license_plate, on_collapsed_change }) => {
   const [is_linked, set_is_linked] = useState(false);
   const [telegram_username, set_telegram_username] = useState<string | null>(null);
@@ -23,21 +25,39 @@ export const TelegramLink: React.FC<TelegramLinkProps> = ({ license_plate, on_co
   };
 
   useEffect(() => {
-    check_telegram_link();
+    const normalized_plate = (license_plate || '').trim().toUpperCase();
+
+    if (!normalized_plate) {
+      set_is_linked(false);
+      set_telegram_username(null);
+      return;
+    }
+
+    const cached = telegramLinkCache.get(normalized_plate);
+    if (cached) {
+      set_is_linked(cached.linked);
+      set_telegram_username(cached.username);
+      return;
+    }
+
+    check_telegram_link(normalized_plate);
   }, [license_plate]);
 
-  const check_telegram_link = async () => {
-    if (!license_plate) {
+  const check_telegram_link = async (normalized_plate: string) => {
+    if (!normalized_plate) {
       set_is_linked(false);
+      set_telegram_username(null);
       return;
     }
     
     try {
-      const response = await fetch(build_api_url(`/api/telegram-users.php?license_plate=${encodeURIComponent(license_plate)}`));
+      const response = await fetch(build_api_url(`/api/telegram-users.php?license_plate=${encodeURIComponent(normalized_plate)}`));
       
       if (!response.ok) {
         // If 404 or other error, user is not linked
         set_is_linked(false);
+        set_telegram_username(null);
+        telegramLinkCache.set(normalized_plate, { linked: false, username: null });
         return;
       }
       
@@ -45,13 +65,18 @@ export const TelegramLink: React.FC<TelegramLinkProps> = ({ license_plate, on_co
       
       if (data.success && data.data) {
         set_is_linked(true);
-        set_telegram_username(data.data.username || 'Linked');
+        const username = data.data.username || 'Linked';
+        set_telegram_username(username);
+        telegramLinkCache.set(normalized_plate, { linked: true, username });
       } else {
         set_is_linked(false);
+        set_telegram_username(null);
+        telegramLinkCache.set(normalized_plate, { linked: false, username: null });
       }
     } catch (error) {
       console.error('Error checking Telegram link:', error);
       set_is_linked(false);
+      set_telegram_username(null);
     }
   };
 
