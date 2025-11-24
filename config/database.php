@@ -297,6 +297,28 @@ class Database {
             )
         ");
         
+        // Create wallet_connections table (for web and telegram wallet connections)
+        // license_plate is the PRIMARY KEY - shared between web (password) and telegram (username)
+        $this->db->exec("
+            CREATE TABLE IF NOT EXISTS wallet_connections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                license_plate TEXT NOT NULL UNIQUE,
+                wallet_address TEXT NOT NULL,
+                password_hash TEXT,
+                device_id TEXT,
+                telegram_user_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (telegram_user_id) REFERENCES telegram_users (telegram_user_id)
+            )
+        ");
+        
+        // Create indexes for faster lookups
+        $this->db->exec("CREATE INDEX IF NOT EXISTS idx_wallet_connections_license_plate ON wallet_connections(license_plate)");
+        $this->db->exec("CREATE INDEX IF NOT EXISTS idx_wallet_connections_wallet ON wallet_connections(wallet_address)");
+        $this->db->exec("CREATE INDEX IF NOT EXISTS idx_wallet_connections_device ON wallet_connections(device_id)");
+        $this->db->exec("CREATE INDEX IF NOT EXISTS idx_wallet_connections_telegram ON wallet_connections(telegram_user_id)");
+        
         // Create notification_queue table
         $this->db->exec("
             CREATE TABLE IF NOT EXISTS notification_queue (
@@ -672,6 +694,8 @@ class Database {
     
     // Migration methods
     private function migrateTables() {
+        // Check if zone_id column exists in sensors table and add if needed
+        
         // Check if zone_id column exists in sensors table
         $result = $this->db->query("PRAGMA table_info(sensors)");
         $columns = [];
@@ -887,81 +911,85 @@ class Database {
     
     // Zone management methods
     public function getParkingZones() {
-        // Check if max_duration_hours column exists
-        $has_max_duration_hours = false;
-        try {
-            $check_result = $this->db->query("PRAGMA table_info(parking_zones)");
-            while ($row = $check_result->fetchArray(SQLITE3_ASSOC)) {
-                if ($row['name'] === 'max_duration_hours') {
-                    $has_max_duration_hours = true;
-                    break;
-                }
-            }
-        } catch (Exception $e) {
+        return $this->executeWithRetry(function() {
+            // Check if max_duration_hours column exists
             $has_max_duration_hours = false;
-        }
-        
-        $max_duration_select = $has_max_duration_hours ? 'z.max_duration_hours,' : 'NULL as max_duration_hours,';
-        
-        $result = $this->db->query("
-            SELECT 
-                z.id,
-                z.name,
-                z.description,
-                z.color,
-                z.hourly_rate,
-                z.daily_rate,
-                z.is_active,
-                z.is_premium,
-                {$max_duration_select}
-                z.created_at,
-                z.updated_at,
-                COUNT(zps.parking_space_id) as space_count
-            FROM parking_zones z
-            LEFT JOIN zone_parking_spaces zps ON z.id = zps.zone_id
-            GROUP BY z.id
-            ORDER BY z.name
-        ");
-        
-        $zones = [];
-        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-            $zones[] = $row;
-        }
-        
-        return $zones;
+            try {
+                $check_result = $this->db->query("PRAGMA table_info(parking_zones)");
+                while ($row = $check_result->fetchArray(SQLITE3_ASSOC)) {
+                    if ($row['name'] === 'max_duration_hours') {
+                        $has_max_duration_hours = true;
+                        break;
+                    }
+                }
+            } catch (Exception $e) {
+                $has_max_duration_hours = false;
+            }
+            
+            $max_duration_select = $has_max_duration_hours ? 'z.max_duration_hours,' : 'NULL as max_duration_hours,';
+            
+            $result = $this->db->query("
+                SELECT 
+                    z.id,
+                    z.name,
+                    z.description,
+                    z.color,
+                    z.hourly_rate,
+                    z.daily_rate,
+                    z.is_active,
+                    z.is_premium,
+                    {$max_duration_select}
+                    z.created_at,
+                    z.updated_at,
+                    COUNT(zps.parking_space_id) as space_count
+                FROM parking_zones z
+                LEFT JOIN zone_parking_spaces zps ON z.id = zps.zone_id
+                GROUP BY z.id
+                ORDER BY z.name
+            ");
+            
+            $zones = [];
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $zones[] = $row;
+            }
+            
+            return $zones;
+        });
     }
     
     public function getParkingZone($id) {
-        // Check if max_duration_hours column exists
-        $has_max_duration = false;
-        try {
-            $check_result = $this->db->query("PRAGMA table_info(parking_zones)");
-            while ($row = $check_result->fetchArray(SQLITE3_ASSOC)) {
-                if ($row['name'] === 'max_duration_hours') {
-                    $has_max_duration = true;
-                    break;
-                }
-            }
-        } catch (Exception $e) {
+        return $this->executeWithRetry(function() use ($id) {
+            // Check if max_duration_hours column exists
             $has_max_duration = false;
-        }
-        
-        // Use SELECT * which will automatically include all existing columns
-        // SQLite will handle missing columns gracefully
-        $stmt = $this->db->prepare("
-            SELECT * FROM parking_zones WHERE id = ?
-        ");
-        $stmt->bindValue(1, $id);
-        $result = $stmt->execute();
-        
-        $zone = $result->fetchArray(SQLITE3_ASSOC);
-        
-        // If max_duration_hours doesn't exist, add it as null
-        if ($zone && !$has_max_duration && !isset($zone['max_duration_hours'])) {
-            $zone['max_duration_hours'] = null;
-        }
-        
-        return $zone;
+            try {
+                $check_result = $this->db->query("PRAGMA table_info(parking_zones)");
+                while ($row = $check_result->fetchArray(SQLITE3_ASSOC)) {
+                    if ($row['name'] === 'max_duration_hours') {
+                        $has_max_duration = true;
+                        break;
+                    }
+                }
+            } catch (Exception $e) {
+                $has_max_duration = false;
+            }
+            
+            // Use SELECT * which will automatically include all existing columns
+            // SQLite will handle missing columns gracefully
+            $stmt = $this->db->prepare("
+                SELECT * FROM parking_zones WHERE id = ?
+            ");
+            $stmt->bindValue(1, $id);
+            $result = $stmt->execute();
+            
+            $zone = $result->fetchArray(SQLITE3_ASSOC);
+            
+            // If max_duration_hours doesn't exist, add it as null
+            if ($zone && !$has_max_duration && !isset($zone['max_duration_hours'])) {
+                $zone['max_duration_hours'] = null;
+            }
+            
+            return $zone;
+        });
     }
     
     public function addParkingZone($data, $admin_user_id) {
@@ -1088,37 +1116,51 @@ class Database {
     }
     
     public function assignParkingSpaceToZone($zone_id, $parking_space_id, $admin_user_id) {
-        $stmt = $this->db->prepare("
-            INSERT OR REPLACE INTO zone_parking_spaces (zone_id, parking_space_id)
-            VALUES (?, ?)
-        ");
-        
-        $stmt->bindValue(1, $zone_id);
-        $stmt->bindValue(2, $parking_space_id);
-        
-        if ($stmt->execute()) {
-            $this->logAdminAction($admin_user_id, 'ASSIGN', 'zone_parking_spaces', $parking_space_id, null, json_encode(['zone_id' => $zone_id]));
-            return true;
-        }
-        
-        return false;
+        return $this->executeWithRetry(function() use ($zone_id, $parking_space_id, $admin_user_id) {
+            $stmt = $this->db->prepare("
+                INSERT OR REPLACE INTO zone_parking_spaces (zone_id, parking_space_id)
+                VALUES (?, ?)
+            ");
+            
+            $stmt->bindValue(1, $zone_id);
+            $stmt->bindValue(2, $parking_space_id);
+            
+            if ($stmt->execute()) {
+                try {
+                    $this->logAdminAction($admin_user_id, 'ASSIGN', 'zone_parking_spaces', $parking_space_id, null, json_encode(['zone_id' => $zone_id]));
+                } catch (Exception $e) {
+                    // Log error but don't fail the operation
+                    error_log("Failed to log admin action: " . $e->getMessage());
+                }
+                return true;
+            }
+            
+            return false;
+        });
     }
     
     public function removeParkingSpaceFromZone($zone_id, $parking_space_id, $admin_user_id) {
-        $stmt = $this->db->prepare("
-            DELETE FROM zone_parking_spaces 
-            WHERE zone_id = ? AND parking_space_id = ?
-        ");
-        
-        $stmt->bindValue(1, $zone_id);
-        $stmt->bindValue(2, $parking_space_id);
-        
-        if ($stmt->execute()) {
-            $this->logAdminAction($admin_user_id, 'REMOVE', 'zone_parking_spaces', $parking_space_id, json_encode(['zone_id' => $zone_id]), null);
-            return true;
-        }
-        
-        return false;
+        return $this->executeWithRetry(function() use ($zone_id, $parking_space_id, $admin_user_id) {
+            $stmt = $this->db->prepare("
+                DELETE FROM zone_parking_spaces 
+                WHERE zone_id = ? AND parking_space_id = ?
+            ");
+            
+            $stmt->bindValue(1, $zone_id);
+            $stmt->bindValue(2, $parking_space_id);
+            
+            if ($stmt->execute()) {
+                try {
+                    $this->logAdminAction($admin_user_id, 'REMOVE', 'zone_parking_spaces', $parking_space_id, json_encode(['zone_id' => $zone_id]), null);
+                } catch (Exception $e) {
+                    // Log error but don't fail the operation
+                    error_log("Failed to log admin action: " . $e->getMessage());
+                }
+                return true;
+            }
+            
+            return false;
+        });
     }
     
     public function getParkingSpaceZone($parking_space_id) {
@@ -1217,39 +1259,86 @@ class Database {
     }
     
     public function addSensor($data, $admin_user_id) {
-        $stmt = $this->db->prepare("
-            INSERT INTO sensors (name, wpsd_id, wdc_id, street_name, latitude, longitude, zone_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
-        
-        $stmt->bindValue(1, $data['name']);
-        $stmt->bindValue(2, $data['wpsd_id']);
-        $stmt->bindValue(3, $data['wdc_id'] ?? null);
-        $stmt->bindValue(4, $data['street_name']);
-        $stmt->bindValue(5, $data['latitude']);
-        $stmt->bindValue(6, $data['longitude']);
-        $stmt->bindValue(7, $data['zone_id'] ?? null);
-        
-        $result = $stmt->execute();
-        
-        if ($result) {
-            $sensorId = $this->db->lastInsertRowID();
-            
-            // Create associated parking space
-            $stmt2 = $this->db->prepare("
-                INSERT INTO parking_spaces (sensor_id, status)
-                VALUES (?, 'vacant')
+        return $this->executeWithRetry(function() use ($data, $admin_user_id) {
+            // First, check if sensor with this wpsd_id already exists
+            $check_stmt = $this->db->prepare("
+                SELECT id, name FROM sensors WHERE wpsd_id = ?
             ");
-            $stmt2->bindValue(1, $sensorId);
-            $stmt2->execute();
+            $check_stmt->bindValue(1, $data['wpsd_id']);
+            $check_result = $check_stmt->execute();
+            $existing_sensor = $check_result->fetchArray(SQLITE3_ASSOC);
             
-            // Log the action
-            $this->logAdminAction($admin_user_id, 'CREATE', 'sensors', $sensorId, null, $data);
+            if ($existing_sensor) {
+                return [
+                    'success' => false,
+                    'error' => "Sensor with WPSD ID '{$data['wpsd_id']}' already exists (ID: {$existing_sensor['id']}, Name: {$existing_sensor['name']}). Please use a different WPSD ID or update the existing sensor."
+                ];
+            }
             
-            return ['success' => true, 'sensor_id' => $sensorId];
-        }
-        
-        return ['success' => false, 'error' => 'Failed to add sensor'];
+            // Begin transaction
+            $this->db->exec("BEGIN TRANSACTION");
+            
+            try {
+                $stmt = $this->db->prepare("
+                    INSERT INTO sensors (name, wpsd_id, wdc_id, street_name, latitude, longitude, zone_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ");
+                
+                $stmt->bindValue(1, $data['name']);
+                $stmt->bindValue(2, $data['wpsd_id']);
+                $stmt->bindValue(3, $data['wdc_id'] ?? null);
+                $stmt->bindValue(4, $data['street_name']);
+                $stmt->bindValue(5, $data['latitude']);
+                $stmt->bindValue(6, $data['longitude']);
+                $stmt->bindValue(7, $data['zone_id'] ?? null);
+                
+                $result = $stmt->execute();
+                
+                if (!$result) {
+                    $this->db->exec("ROLLBACK");
+                    // Check for UNIQUE constraint error
+                    $error_msg = $this->db->lastErrorMsg();
+                    if (strpos($error_msg, 'UNIQUE constraint') !== false || strpos($error_msg, 'wpsd_id') !== false) {
+                        return [
+                            'success' => false,
+                            'error' => "Sensor with WPSD ID '{$data['wpsd_id']}' already exists. Please use a different WPSD ID or update the existing sensor."
+                        ];
+                    }
+                    return ['success' => false, 'error' => 'Failed to add sensor: ' . $error_msg];
+                }
+                
+                $sensorId = $this->db->lastInsertRowID();
+                
+                // Create associated parking space
+                $stmt2 = $this->db->prepare("
+                    INSERT INTO parking_spaces (sensor_id, status)
+                    VALUES (?, 'vacant')
+                ");
+                $stmt2->bindValue(1, $sensorId);
+                $result2 = $stmt2->execute();
+                
+                if (!$result2) {
+                    $this->db->exec("ROLLBACK");
+                    return ['success' => false, 'error' => 'Failed to create parking space for sensor'];
+                }
+                
+                // Commit transaction
+                $this->db->exec("COMMIT");
+                
+                // Log the action (outside transaction to avoid locking issues)
+                try {
+                    $this->logAdminAction($admin_user_id, 'CREATE', 'sensors', $sensorId, null, $data);
+                } catch (Exception $e) {
+                    // Log error but don't fail the operation
+                    error_log("Failed to log admin action: " . $e->getMessage());
+                }
+                
+                return ['success' => true, 'sensor_id' => $sensorId];
+            } catch (Exception $e) {
+                $this->db->exec("ROLLBACK");
+                throw $e;
+            }
+        });
     }
     
     public function updateSensor($id, $data, $admin_user_id) {
@@ -1324,22 +1413,184 @@ class Database {
             return ['success' => false, 'error' => 'Sensor not found'];
         }
         
-        // Instead of deleting, set status to 'deleted'
-        $stmt2 = $this->db->prepare("
-            UPDATE sensors 
-            SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ");
-        $stmt2->bindValue(1, $id);
-        $result = $stmt2->execute();
+        // Begin transaction
+        $this->db->exec("BEGIN TRANSACTION");
         
-        if ($result && $this->db->changes() > 0) {
-            // Log the action
-            $this->logAdminAction($admin_user_id, 'DELETE', 'sensors', $id, $sensor, ['status' => 'deleted']);
-            return ['success' => true, 'message' => 'Sensor deleted successfully'];
+        try {
+            // Instead of deleting, set status to 'deleted'
+            $stmt2 = $this->db->prepare("
+                UPDATE sensors 
+                SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ");
+            $stmt2->bindValue(1, $id);
+            $result = $stmt2->execute();
+            
+            if (!$result || $this->db->changes() == 0) {
+                $this->db->exec("ROLLBACK");
+                return ['success' => false, 'error' => 'Sensor not found'];
+            }
+            
+            // Also delete associated parking space (cascade delete)
+            $stmt3 = $this->db->prepare("DELETE FROM parking_spaces WHERE sensor_id = ?");
+            $stmt3->bindValue(1, $id);
+            $stmt3->execute();
+            
+            // Commit transaction
+            $this->db->exec("COMMIT");
+            
+            // Log the action (outside transaction to avoid locking issues)
+            try {
+                $this->logAdminAction($admin_user_id, 'DELETE', 'sensors', $id, $sensor, ['status' => 'deleted']);
+            } catch (Exception $e) {
+                error_log("Failed to log admin action: " . $e->getMessage());
+            }
+            
+            return ['success' => true, 'message' => 'Sensor and associated parking space deleted successfully'];
+        } catch (Exception $e) {
+            $this->db->exec("ROLLBACK");
+            throw $e;
         }
+    }
+    
+    /**
+     * Sync sensors and parking spaces to ensure 1:1 relationship
+     * Creates parking spaces for sensors that don't have them
+     * Removes parking spaces that don't have a valid sensor
+     */
+    public function syncSensorsAndParkingSpaces() {
+        $fixes = [];
         
-        return ['success' => false, 'error' => 'Sensor not found'];
+        try {
+            // Find sensors without parking spaces
+            $sensors_without_spaces = $this->db->query("
+                SELECT s.id, s.name, s.wpsd_id, s.status
+                FROM sensors s
+                LEFT JOIN parking_spaces ps ON s.id = ps.sensor_id
+                WHERE ps.id IS NULL AND s.status = 'live'
+            ");
+            
+            $created_count = 0;
+            while ($row = $sensors_without_spaces->fetchArray(SQLITE3_ASSOC)) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO parking_spaces (sensor_id, status)
+                    VALUES (?, 'vacant')
+                ");
+                $stmt->bindValue(1, $row['id']);
+                $stmt->execute();
+                $created_count++;
+            }
+            
+            if ($created_count > 0) {
+                $fixes[] = "Created {$created_count} parking space(s) for sensors without spaces";
+            }
+            
+            // Find parking spaces without valid sensors (sensor deleted, doesn't exist, or not 'live')
+            // This includes spaces where sensor_id is NULL, sensor doesn't exist, or sensor status is not 'live'
+            $spaces_without_sensors = $this->db->query("
+                SELECT ps.id, ps.sensor_id, s.id as sensor_exists, s.status as sensor_status
+                FROM parking_spaces ps
+                LEFT JOIN sensors s ON ps.sensor_id = s.id
+                WHERE ps.sensor_id IS NULL 
+                   OR s.id IS NULL 
+                   OR s.status IS NULL
+                   OR s.status != 'live'
+                   OR s.status = 'deleted'
+            ");
+            
+            $deleted_count = 0;
+            $deleted_ids = [];
+            while ($row = $spaces_without_sensors->fetchArray(SQLITE3_ASSOC)) {
+                $deleted_ids[] = $row['id'];
+                $deleted_count++;
+            }
+            
+            // Delete all invalid parking spaces in one transaction
+            if ($deleted_count > 0) {
+                $this->db->exec("BEGIN TRANSACTION");
+                try {
+                    foreach ($deleted_ids as $space_id) {
+                        $stmt = $this->db->prepare("DELETE FROM parking_spaces WHERE id = ?");
+                        $stmt->bindValue(1, $space_id);
+                        $stmt->execute();
+                    }
+                    $this->db->exec("COMMIT");
+                    $fixes[] = "Deleted {$deleted_count} parking space(s) without valid sensors";
+                } catch (Exception $e) {
+                    $this->db->exec("ROLLBACK");
+                    $fixes[] = "Warning: Failed to delete some parking spaces: " . $e->getMessage();
+                }
+            }
+            
+            // Find parking spaces with multiple sensors (shouldn't happen, but fix if it does)
+            $duplicate_spaces = $this->db->query("
+                SELECT sensor_id, COUNT(*) as count
+                FROM parking_spaces
+                GROUP BY sensor_id
+                HAVING count > 1
+            ");
+            
+            $fixed_duplicates = 0;
+            while ($row = $duplicate_spaces->fetchArray(SQLITE3_ASSOC)) {
+                // Keep the first parking space, delete the rest
+                $stmt = $this->db->prepare("
+                    SELECT id FROM parking_spaces 
+                    WHERE sensor_id = ? 
+                    ORDER BY id ASC
+                    LIMIT 1
+                ");
+                $stmt->bindValue(1, $row['sensor_id']);
+                $result = $stmt->execute();
+                $keep_id = $result->fetchArray(SQLITE3_ASSOC)['id'];
+                
+                $delete_stmt = $this->db->prepare("
+                    DELETE FROM parking_spaces 
+                    WHERE sensor_id = ? AND id != ?
+                ");
+                $delete_stmt->bindValue(1, $row['sensor_id']);
+                $delete_stmt->bindValue(2, $keep_id);
+                $delete_stmt->execute();
+                $fixed_duplicates++;
+            }
+            
+            if ($fixed_duplicates > 0) {
+                $fixes[] = "Fixed {$fixed_duplicates} sensor(s) with multiple parking spaces";
+            }
+            
+            // Get final counts - verify sync
+            $sensors_count = $this->db->query("SELECT COUNT(*) as count FROM sensors WHERE status = 'live'")->fetchArray(SQLITE3_ASSOC)['count'];
+            $spaces_count = $this->db->query("SELECT COUNT(*) as count FROM parking_spaces")->fetchArray(SQLITE3_ASSOC)['count'];
+            
+            // Verify that all parking spaces have valid sensors
+            $valid_spaces_count = $this->db->query("
+                SELECT COUNT(*) as count 
+                FROM parking_spaces ps
+                JOIN sensors s ON ps.sensor_id = s.id
+                WHERE s.status = 'live'
+            ")->fetchArray(SQLITE3_ASSOC)['count'];
+            
+            if ($spaces_count != $sensors_count || $spaces_count != $valid_spaces_count) {
+                $fixes[] = "Warning: Mismatch detected - {$sensors_count} live sensors, {$spaces_count} total spaces, {$valid_spaces_count} valid spaces";
+            }
+            
+            if (count($fixes) == 0 || (count($fixes) == 1 && strpos($fixes[0], 'already in sync') !== false)) {
+                $fixes = ["Sensors and parking spaces are in sync ({$sensors_count} sensors, {$spaces_count} spaces)"];
+            } else {
+                $fixes[] = "Sync complete: {$sensors_count} sensors, {$spaces_count} spaces (all valid)";
+            }
+            
+            return [
+                'success' => true,
+                'fixes' => $fixes,
+                'sensors_count' => $sensors_count,
+                'spaces_count' => $spaces_count
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'error' => 'Failed to sync sensors and parking spaces: ' . $e->getMessage()
+            ];
+        }
     }
     
     // Parking space methods
@@ -1409,93 +1660,328 @@ class Database {
             $linked_spaces = $linked_spaces_result ? $linked_spaces_result->fetchArray(SQLITE3_ASSOC)['count'] : 0;
             error_log("getParkingSpaces: Parking spaces linked to live sensors: {$linked_spaces}");
             
-            $result = $this->db->query("
-                SELECT 
+            // First, get all parking spaces with their sensors (one row per space)
+            // Build query string - use actual column if it exists
+            if ($has_payment_tx_hash) {
+                $payment_col = "ps.payment_tx_hash,";
+            } else {
+                $payment_col = "NULL as payment_tx_hash,";
+            }
+            
+            error_log("getParkingSpaces: has_payment_tx_hash = " . ($has_payment_tx_hash ? 'true' : 'false'));
+            error_log("getParkingSpaces: payment_col = " . $payment_col);
+            
+            // Build query - use EXACT same approach as test query that works
+            // Test query uses NULL as payment_tx_hash and works, so use that
+            $query_sql = "SELECT 
                     ps.id,
                     ps.sensor_id,
                     ps.status,
                     ps.license_plate,
                     ps.reservation_time,
                     ps.occupied_since,
-                    {$payment_tx_hash_select}
+                    NULL as payment_tx_hash,
                     ps.created_at,
                     ps.updated_at,
                     s.name as sensor_name,
                     s.street_name,
                     s.latitude,
-                    s.longitude,
-                    z.id as zone_id,
-                    z.name as zone_name,
-                    z.is_premium as zone_is_premium,
-                    z.hourly_rate as zone_hourly_rate,
-                    z.daily_rate as zone_daily_rate,
-                    z.color as zone_color,
-                    {$max_duration_select}
-                    {$reservation_end_select}
+                    s.longitude
+                FROM parking_spaces ps
+                INNER JOIN sensors s ON ps.sensor_id = s.id
+                WHERE s.status = 'live'
+                ORDER BY ps.id";
+            
+            error_log("getParkingSpaces: Executing query (first 300 chars): " . substr($query_sql, 0, 300));
+            error_log("getParkingSpaces: payment_tx_hash_select = " . $payment_tx_hash_select);
+            error_log("getParkingSpaces: linked_spaces count = {$linked_spaces}");
+            error_log("getParkingSpaces: Full query: " . $query_sql);
+            
+            // Test query directly to see if it returns results
+            $test_result = $this->db->query("
+                SELECT COUNT(*) as count 
                 FROM parking_spaces ps
                 JOIN sensors s ON ps.sensor_id = s.id
-                LEFT JOIN zone_parking_spaces zps ON ps.id = zps.parking_space_id
-                LEFT JOIN parking_zones z ON zps.zone_id = z.id
-                {$reservation_join}
                 WHERE s.status = 'live'
-                ORDER BY ps.id
             ");
+            if ($test_result) {
+                $test_count = $test_result->fetchArray(SQLITE3_ASSOC);
+                error_log("getParkingSpaces: Test query count: " . ($test_count['count'] ?? 'N/A'));
+            }
             
-            if (!$result) {
-                error_log('getParkingSpaces: Query failed - ' . $this->db->lastErrorMsg());
+            // Execute query and process results
+            $parking_spaces_map = [];
+            $row_count = 0;
+            $has_rows = false;
+            $first_row_id = null;
+            
+            try {
+                error_log("getParkingSpaces: About to execute query");
+                $result = $this->db->query($query_sql);
+                error_log("getParkingSpaces: Query executed, result: " . ($result ? 'SUCCESS' : 'FAILED'));
+                
+                if (!$result) {
+                    $error_msg = $this->db->lastErrorMsg();
+                    error_log('getParkingSpaces: Query failed - ' . $error_msg);
+                    error_log('getParkingSpaces: Full query: ' . $query_sql);
+                    return [];
+                }
+                
+                // Process all rows from the result - use simple while loop like test query does
+                error_log("getParkingSpaces: About to process rows");
+                while (($row = $result->fetchArray(SQLITE3_ASSOC)) !== false) {
+                    $row_count++;
+                    $has_rows = true;
+                    error_log("getParkingSpaces: Processing row {$row_count}, space_id: " . ($row['id'] ?? 'N/A'));
+                    
+                    if (!$row || empty($row)) {
+                        error_log("getParkingSpaces: Empty row at iteration {$row_count}");
+                        continue;
+                    }
+                    
+                    // Ensure space_id is integer for consistent map keys
+                    $space_id = (int)$row['id'];
+                    if ($first_row_id === null) {
+                        $first_row_id = $space_id;
+                        error_log("getParkingSpaces: First row found - ID: {$space_id} (type: " . gettype($space_id) . "), sensor_id: " . ($row['sensor_id'] ?? 'N/A'));
+                    }
+                    
+                    // Skip if we already processed this parking space (shouldn't happen with this query, but safety check)
+                    if (isset($parking_spaces_map[$space_id])) {
+                        error_log("getParkingSpaces: Warning - duplicate parking space ID {$space_id} found");
+                        continue;
+                    }
+                    
+                    $space = [
+                        'id' => $space_id,
+                        'sensor_id' => $row['sensor_id'] ?? null,
+                        'status' => $row['status'] ?? 'vacant',
+                        'coordinates' => [
+                            'lat' => $row['latitude'] ?? 0.0,
+                            'lng' => $row['longitude'] ?? 0.0
+                        ],
+                        'license_plate' => $row['license_plate'] ?? null,
+                        'reservation_time' => $row['reservation_time'] ?? null,
+                        'reservation_end_time' => null, // Will be set from reservations if exists
+                        'occupied_since' => $row['occupied_since'] ?? null,
+                        'payment_tx_hash' => $row['payment_tx_hash'] ?? null
+                    ];
+                    
+                    // Add sensor name and street name if available
+                    if (!empty($row['sensor_name'])) {
+                        $space['sensor_name'] = $row['sensor_name'];
+                    }
+                    if (!empty($row['street_name'])) {
+                        $space['street_name'] = $row['street_name'];
+                    }
+                    
+                    $parking_spaces_map[$space_id] = $space;
+                    error_log("getParkingSpaces: Added space ID {$space_id} to map. Total in map: " . count($parking_spaces_map));
+                }
+                
+                if (!$has_rows) {
+                    error_log("getParkingSpaces: Query returned no rows. linked_spaces={$linked_spaces}, live_sensors={$live_sensors}, total_spaces={$total_spaces}");
+                    error_log("getParkingSpaces: parking_spaces_map count: " . count($parking_spaces_map));
+                } else {
+                    error_log("getParkingSpaces: Query returned {$row_count} rows, first_row_id={$first_row_id}, created " . count($parking_spaces_map) . " unique parking spaces");
+                }
+                
+            } catch (Exception $e) {
+                error_log('getParkingSpaces: Query exception - ' . $e->getMessage());
+                error_log('getParkingSpaces: Exception trace: ' . $e->getTraceAsString());
+                error_log('getParkingSpaces: Full query: ' . $query_sql);
+                error_log('getParkingSpaces: parking_spaces_map count before exception: ' . count($parking_spaces_map));
                 return [];
             }
             
-            $parking_spaces = [];
-            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-                if (!$row) {
-                    break;
-                }
-                
-                $space = [
-                    'id' => $row['id'] ?? null,
-                    'sensor_id' => $row['sensor_id'] ?? null,
-                    'status' => $row['status'] ?? 'vacant',
-                    'coordinates' => [
-                        'lat' => $row['latitude'] ?? 0.0,
-                        'lng' => $row['longitude'] ?? 0.0
-                    ],
-                    'license_plate' => $row['license_plate'] ?? null,
-                    'reservation_time' => $row['reservation_time'] ?? null,
-                    'reservation_end_time' => $row['reservation_end_time'] ?? null,
-                    'occupied_since' => $row['occupied_since'] ?? null,
-                    'payment_tx_hash' => $row['payment_tx_hash'] ?? null
-                ];
-                
-                // Add sensor name and street name if available
-                if (!empty($row['sensor_name'])) {
-                    $space['sensor_name'] = $row['sensor_name'];
-                }
-                if (!empty($row['street_name'])) {
-                    $space['street_name'] = $row['street_name'];
-                }
-                
-                // Add zone information if exists
-                if (!empty($row['zone_id'])) {
-                    // Convert is_premium to boolean (handle both 1/0 and true/false)
-                    $is_premium = false;
-                    if (isset($row['zone_is_premium'])) {
-                        $is_premium = ($row['zone_is_premium'] == 1 || $row['zone_is_premium'] === true || $row['zone_is_premium'] === '1');
+            // Get zone information for all parking spaces (separate query to avoid duplicates)
+            error_log("getParkingSpaces: Before zone query, parking_spaces_map count: " . count($parking_spaces_map));
+            if (!empty($parking_spaces_map)) {
+                try {
+                    $space_ids = array_keys($parking_spaces_map);
+                    // Ensure all space IDs are integers for consistent type matching
+                    $space_ids = array_map('intval', $space_ids);
+                    
+                    // Debug: Log space IDs and their types
+                    error_log("getParkingSpaces: Space IDs from map: " . json_encode($space_ids));
+                    error_log("getParkingSpaces: Space IDs types: " . json_encode(array_map('gettype', $space_ids)));
+                    
+                    // Re-check max_duration_hours for zone query (in case it wasn't set earlier)
+                    if (!isset($max_duration_select)) {
+                        $has_max_duration_hours = false;
+                        try {
+                            $check_result = $this->db->query("PRAGMA table_info(parking_zones)");
+                            while ($row = $check_result->fetchArray(SQLITE3_ASSOC)) {
+                                if ($row['name'] === 'max_duration_hours') {
+                                    $has_max_duration_hours = true;
+                                    break;
+                                }
+                            }
+                        } catch (Exception $e) {
+                            $has_max_duration_hours = false;
+                        }
+                        $max_duration_select = $has_max_duration_hours ? 'z.max_duration_hours as zone_max_duration_hours,' : 'NULL as zone_max_duration_hours,';
                     }
                     
-                    $space['zone'] = [
-                        'id' => (string)$row['zone_id'], // Convert to string for consistency with frontend
-                        'name' => $row['zone_name'] ?? null,
-                        'is_premium' => $is_premium,
-                        'hourly_rate' => isset($row['zone_hourly_rate']) ? (float)$row['zone_hourly_rate'] : null,
-                        'daily_rate' => isset($row['zone_daily_rate']) ? (float)$row['zone_daily_rate'] : null,
-                        'color' => $row['zone_color'] ?? null,
-                        'max_duration_hours' => isset($row['zone_max_duration_hours']) ? (int)$row['zone_max_duration_hours'] : null
-                    ];
+                    error_log("getParkingSpaces: max_duration_select = " . $max_duration_select);
+                    error_log("getParkingSpaces: space_ids = " . json_encode($space_ids));
+                    
+                    // Use direct query instead of prepared statement - SQLite3 has issues with IN clause placeholders
+                    // Space IDs are already integers from array_keys, so safe to use directly
+                    $space_ids_escaped = array_map(function($id) {
+                        return (int)$id; // Ensure integer type
+                    }, $space_ids);
+                    $space_ids_string = implode(',', $space_ids_escaped);
+                    
+                    // Build query string with proper max_duration_select
+                    $zones_query_sql = "SELECT " .
+                        "zps.parking_space_id, " .
+                        "z.id as zone_id, " .
+                        "z.name as zone_name, " .
+                        "z.is_premium as zone_is_premium, " .
+                        "z.hourly_rate as zone_hourly_rate, " .
+                        "z.daily_rate as zone_daily_rate, " .
+                        "z.color as zone_color, " .
+                        $max_duration_select . " " .
+                        "FROM zone_parking_spaces zps " .
+                        "JOIN parking_zones z ON zps.zone_id = z.id " .
+                        "WHERE zps.parking_space_id IN ({$space_ids_string}) " .
+                        "ORDER BY zps.parking_space_id, z.id";
+                    
+                    error_log("getParkingSpaces: Zone query SQL: " . $zones_query_sql);
+                    error_log("getParkingSpaces: Space IDs in query: " . $space_ids_string);
+                    error_log("getParkingSpaces: Space IDs array: " . json_encode($space_ids));
+                    
+                    // Test direct query to verify data exists
+                    $test_query = "SELECT COUNT(*) as count FROM zone_parking_spaces WHERE parking_space_id IN ({$space_ids_string})";
+                    $test_result = $this->db->query($test_query);
+                    if ($test_result) {
+                        $test_row = $test_result->fetchArray(SQLITE3_ASSOC);
+                        error_log("getParkingSpaces: Test query count: " . ($test_row['count'] ?? 'N/A'));
+                    }
+                    
+                    error_log("getParkingSpaces: Executing zone query for " . count($space_ids) . " spaces");
+                    $zones_result = $this->db->query($zones_query_sql);
+                    error_log("getParkingSpaces: Zone query execute result: " . ($zones_result ? 'SUCCESS' : 'FAILED'));
+                    if (!$zones_result) {
+                        error_log("getParkingSpaces: Zone query error: " . $this->db->lastErrorMsg());
+                    }
+                    if ($zones_result) {
+                        $zone_rows_count = 0;
+                        error_log("getParkingSpaces: About to fetch zone rows");
+                        while (($zone_row = $zones_result->fetchArray(SQLITE3_ASSOC)) !== false) {
+                            $zone_rows_count++;
+                            // Ensure space_id is integer to match map keys
+                            $space_id = (int)$zone_row['parking_space_id'];
+                            error_log("getParkingSpaces: Zone row {$zone_rows_count} - space_id: {$space_id} (type: " . gettype($space_id) . "), zone_id: " . ($zone_row['zone_id'] ?? 'N/A'));
+                            
+                            // Check if space exists in map
+                            if (isset($parking_spaces_map[$space_id])) {
+                                // Use the first zone found (or you could collect all zones if needed)
+                                if (!isset($parking_spaces_map[$space_id]['zone'])) {
+                                    $is_premium = ($zone_row['zone_is_premium'] == 1 || $zone_row['zone_is_premium'] === true || $zone_row['zone_is_premium'] === '1');
+                                    $zone_data = [
+                                        'id' => (string)$zone_row['zone_id'],
+                                        'name' => $zone_row['zone_name'] ?? null,
+                                        'is_premium' => $is_premium,
+                                        'hourly_rate' => isset($zone_row['zone_hourly_rate']) ? (float)$zone_row['zone_hourly_rate'] : null,
+                                        'daily_rate' => isset($zone_row['zone_daily_rate']) ? (float)$zone_row['zone_daily_rate'] : null,
+                                        'color' => $zone_row['zone_color'] ?? null,
+                                        'max_duration_hours' => isset($zone_row['zone_max_duration_hours']) ? (int)$zone_row['zone_max_duration_hours'] : null
+                                    ];
+                                    $parking_spaces_map[$space_id]['zone'] = $zone_data;
+                                    error_log("getParkingSpaces: Added zone to space {$space_id} - zone_id: " . ($zone_row['zone_id'] ?? 'N/A') . ", name: " . ($zone_row['zone_name'] ?? 'N/A'));
+                                    error_log("getParkingSpaces: Zone data added: " . json_encode($zone_data));
+                                    error_log("getParkingSpaces: Space in map after zone addition: " . json_encode($parking_spaces_map[$space_id]));
+                                }
+                            } else {
+                                error_log("getParkingSpaces: ERROR - zone row for space_id {$space_id} (type: {$space_id_type}) but space not found in map!");
+                                error_log("getParkingSpaces: Available map keys: " . json_encode(array_keys($parking_spaces_map)));
+                                error_log("getParkingSpaces: Map keys types: " . json_encode(array_map('gettype', array_keys($parking_spaces_map))));
+                            }
+                        }
+                        error_log("getParkingSpaces: Zone query returned {$zone_rows_count} rows");
+                        if ($zone_rows_count === 0) {
+                            error_log("getParkingSpaces: WARNING - Zone query returned 0 rows but zone_relationships exist. Query was: " . substr($zones_query_sql, 0, 200));
+                            error_log("getParkingSpaces: Space IDs used in query: " . $space_ids_string);
+                        }
+                    } else {
+                        error_log("getParkingSpaces: Zone query execution failed - " . $this->db->lastErrorMsg());
+                        error_log("getParkingSpaces: Failed query was: " . substr($zones_query_sql, 0, 200));
+                    }
+                } catch (Exception $e) {
+                    error_log('getParkingSpaces: Zone query exception - ' . $e->getMessage());
+                    error_log('getParkingSpaces: Zone query exception trace: ' . $e->getTraceAsString());
+                    // Don't return empty array, continue with spaces without zones
+                }
+            }
+            
+            error_log("getParkingSpaces: After zone query, parking_spaces_map count: " . count($parking_spaces_map));
+            
+            // Count how many spaces have zones
+            $spaces_with_zones = 0;
+            foreach ($parking_spaces_map as $space_id => $space) {
+                if (isset($space['zone'])) {
+                    $spaces_with_zones++;
+                }
+            }
+            error_log("getParkingSpaces: Spaces with zones: {$spaces_with_zones} out of " . count($parking_spaces_map));
+            
+            // Get reservation end times if reservations table exists
+            if ($has_reservations_table && !empty($parking_spaces_map)) {
+                $space_ids = array_keys($parking_spaces_map);
+                $placeholders = implode(',', array_fill(0, count($space_ids), '?'));
+                
+                $reservations_query = $this->db->prepare("
+                    SELECT parking_space_id, end_time
+                    FROM reservations
+                    WHERE parking_space_id IN ({$placeholders})
+                    AND status = 'active'
+                ");
+                
+                foreach ($space_ids as $index => $space_id) {
+                    $reservations_query->bindValue($index + 1, $space_id);
                 }
                 
-                $parking_spaces[] = $space;
+                $reservations_result = $reservations_query->execute();
+                if ($reservations_result) {
+                    while ($reservation_row = $reservations_result->fetchArray(SQLITE3_ASSOC)) {
+                        $space_id = $reservation_row['parking_space_id'];
+                        if (isset($parking_spaces_map[$space_id])) {
+                            $parking_spaces_map[$space_id]['reservation_end_time'] = $reservation_row['end_time'];
+                        }
+                    }
+                }
             }
+            
+            error_log("getParkingSpaces: Before converting to array, parking_spaces_map count: " . count($parking_spaces_map));
+            
+            // Count zones before conversion
+            $zones_before_conversion = 0;
+            foreach ($parking_spaces_map as $space_id => $space) {
+                if (isset($space['zone']) && !empty($space['zone'])) {
+                    $zones_before_conversion++;
+                    error_log("getParkingSpaces: Space {$space_id} has zone before conversion: " . json_encode($space['zone']));
+                }
+            }
+            error_log("getParkingSpaces: Spaces with zones before conversion: {$zones_before_conversion}");
+            
+            // Convert map to array
+            $parking_spaces = array_values($parking_spaces_map);
+            
+            // Count zones after conversion
+            $zones_after_conversion = 0;
+            foreach ($parking_spaces as $index => $space) {
+                if (isset($space['zone']) && !empty($space['zone'])) {
+                    $zones_after_conversion++;
+                    error_log("getParkingSpaces: Space at index {$index} (ID: " . ($space['id'] ?? 'N/A') . ") has zone after conversion: " . json_encode($space['zone']));
+                } else {
+                    error_log("getParkingSpaces: Space at index {$index} (ID: " . ($space['id'] ?? 'N/A') . ") has NO zone after conversion");
+                }
+            }
+            error_log("getParkingSpaces: Spaces with zones after conversion: {$zones_after_conversion}");
+            error_log("getParkingSpaces: After converting to array, parking_spaces count: " . count($parking_spaces));
+            error_log("getParkingSpaces: Returning " . count($parking_spaces) . " unique parking spaces");
             
             return $parking_spaces;
         } catch (Exception $e) {
@@ -1505,12 +1991,18 @@ class Database {
         }
     }
     
-    public function updateParkingSpaceStatus($id, $status, $license_plate = null, $reservation_time = null, $occupied_since = null, $payment_tx_hash = null) {
-        return $this->executeWithRetry(function() use ($id, $status, $license_plate, $reservation_time, $occupied_since, $payment_tx_hash) {
+    public function updateParkingSpaceStatus($id, $status, $license_plate = null, $reservation_time = null, $occupied_since = null, $payment_tx_hash = null, $expected_current_status = null) {
+        return $this->executeWithRetry(function() use ($id, $status, $license_plate, $reservation_time, $occupied_since, $payment_tx_hash, $expected_current_status) {
+            // Build WHERE clause - if expected_current_status is provided, check it atomically
+            $where_clause = "WHERE id = ?";
+            if ($expected_current_status !== null) {
+                $where_clause = "WHERE id = ? AND status = ?";
+            }
+            
             $stmt = $this->db->prepare("
                 UPDATE parking_spaces 
                 SET status = ?, license_plate = ?, reservation_time = ?, occupied_since = ?, payment_tx_hash = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                {$where_clause}
             ");
             
             $stmt->bindValue(1, $status);
@@ -1520,6 +2012,10 @@ class Database {
             $stmt->bindValue(5, $payment_tx_hash);
             $stmt->bindValue(6, $id);
             
+            if ($expected_current_status !== null) {
+                $stmt->bindValue(7, $expected_current_status);
+            }
+            
             $result = $stmt->execute();
             
             if ($result && $this->db->changes() > 0) {
@@ -1528,33 +2024,112 @@ class Database {
                 return ['success' => true, 'message' => 'Parking space updated successfully'];
             }
             
+            // If expected_current_status was provided but no rows were updated, space was not in expected state
+            if ($expected_current_status !== null) {
+                return ['success' => false, 'error' => 'Parking space status has changed. It is no longer ' . $expected_current_status . '.'];
+            }
+            
             return ['success' => false, 'error' => 'Parking space not found'];
+        }, 5, 50000); // 5 retries, 50ms base delay
+    }
+    
+    /**
+     * Update parking space status from sensor (with reservation protection)
+     * CRITICAL: Never updates if status is 'reserved'
+     */
+    public function updateParkingSpaceStatusFromSensor($parking_space_id, $occupancy_status) {
+        return $this->executeWithRetry(function() use ($parking_space_id, $occupancy_status) {
+            // First, check current status - if reserved, do not update
+            $check_stmt = $this->db->prepare("SELECT status FROM parking_spaces WHERE id = ?");
+            $check_stmt->bindValue(1, $parking_space_id, SQLITE3_INTEGER);
+            $check_result = $check_stmt->execute();
+            
+            if (!$check_result) {
+                return ['success' => false, 'error' => 'Failed to check parking space status'];
+            }
+            
+            $current_row = $check_result->fetchArray(SQLITE3_ASSOC);
+            if (!$current_row) {
+                return ['success' => false, 'error' => 'Parking space not found'];
+            }
+            
+            $current_status = $current_row['status'];
+            
+            // CRITICAL PROTECTION: Never update if status is 'reserved'
+            if ($current_status === 'reserved') {
+                return ['success' => false, 'error' => 'Cannot update reserved parking space'];
+            }
+            
+            // Set occupied_since if transitioning to occupied
+            $occupied_since = null;
+            if ($occupancy_status === 'occupied' && $current_status !== 'occupied') {
+                $occupied_since = date('Y-m-d H:i:s');
+            }
+            
+            // Update status (only if not reserved)
+            $stmt = $this->db->prepare("
+                UPDATE parking_spaces 
+                SET status = ?, occupied_since = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND status != 'reserved'
+            ");
+            
+            $stmt->bindValue(1, $occupancy_status);
+            $stmt->bindValue(2, $occupied_since);
+            $stmt->bindValue(3, $parking_space_id, SQLITE3_INTEGER);
+            
+            $result = $stmt->execute();
+            
+            if ($result && $this->db->changes() > 0) {
+                return ['success' => true, 'message' => 'Parking space updated successfully'];
+            }
+            
+            return ['success' => false, 'error' => 'Parking space not updated (may be reserved or not found)'];
         }, 5, 50000); // 5 retries, 50ms base delay
     }
     
     // Track parking usage for analytics
     private function trackParkingUsage($parking_space_id, $status, $license_plate) {
-        if ($status === 'occupied' && $license_plate) {
-            // Start new usage session
-            $stmt = $this->db->prepare("
-                INSERT INTO parking_usage (license_plate, parking_space_id, start_time)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
+        if (($status === 'occupied' || $status === 'reserved') && $license_plate) {
+            // Start new usage session for both occupied and reserved status
+            // Check if there's already an active session for this space and license plate
+            $check_stmt = $this->db->prepare("
+                SELECT id FROM parking_usage 
+                WHERE parking_space_id = ? AND license_plate = ? AND end_time IS NULL
+                LIMIT 1
             ");
-            $stmt->bindValue(1, $license_plate);
-            $stmt->bindValue(2, $parking_space_id);
-            $stmt->execute();
-        } elseif ($status === 'vacant' && $license_plate) {
-            // Complete usage session
+            $check_stmt->bindValue(1, $parking_space_id);
+            $check_stmt->bindValue(2, $license_plate);
+            $check_result = $check_stmt->execute();
+            $existing = $check_result->fetchArray(SQLITE3_ASSOC);
+            
+            if (!$existing) {
+                // Create new usage session
+                $stmt = $this->db->prepare("
+                    INSERT INTO parking_usage (license_plate, parking_space_id, start_time)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                ");
+                $stmt->bindValue(1, $license_plate);
+                $stmt->bindValue(2, $parking_space_id);
+                $stmt->execute();
+            }
+        } elseif ($status === 'vacant') {
+            // Complete usage session when space becomes vacant
+            // Get zone for this parking space to calculate cost
+            $zone = $this->getParkingSpaceZone($parking_space_id);
+            $hourly_rate = $zone ? (float)$zone['hourly_rate'] : 2.0; // Default 2.0 if no zone
+            
+            // Complete all active usage sessions for this parking space
+            // Calculate duration in minutes: (julianday('now') - julianday(start_time)) * 24 * 60
+            // Calculate cost: (duration_minutes / 60) * hourly_rate
             $stmt = $this->db->prepare("
                 UPDATE parking_usage 
                 SET end_time = CURRENT_TIMESTAMP,
-                    duration_minutes = ROUND((julianday('now') - julianday(start_time)) * 24 * 60),
-                    total_cost = ROUND((julianday('now') - julianday(start_time)) * 24 * 60 * 0.5)
+                    duration_minutes = ROUND((julianday(CURRENT_TIMESTAMP) - julianday(start_time)) * 24 * 60),
+                    total_cost = ROUND(((julianday(CURRENT_TIMESTAMP) - julianday(start_time)) * 24 * 60) / 60.0 * ?, 2)
                 WHERE parking_space_id = ? AND end_time IS NULL
-                ORDER BY start_time DESC
-                LIMIT 1
             ");
-            $stmt->bindValue(1, $parking_space_id);
+            $stmt->bindValue(1, $hourly_rate);
+            $stmt->bindValue(2, $parking_space_id);
             $stmt->execute();
         }
     }
@@ -1575,12 +2150,41 @@ class Database {
         $counts = $result->fetchArray(SQLITE3_ASSOC);
         
         // Get revenue and duration statistics
+        // Calculate duration and cost on-the-fly if missing
         $result2 = $this->db->query("
             SELECT 
                 COUNT(*) as total_sessions,
-                COALESCE(SUM(duration_minutes), 0) as total_duration,
-                COALESCE(SUM(total_cost), 0) as total_revenue,
-                COALESCE(AVG(duration_minutes), 0) as avg_duration
+                COALESCE(SUM(
+                    CASE 
+                        WHEN duration_minutes IS NOT NULL THEN duration_minutes
+                        WHEN end_time IS NOT NULL AND start_time IS NOT NULL 
+                        THEN ROUND((julianday(end_time) - julianday(start_time)) * 24 * 60)
+                        ELSE 0
+                    END
+                ), 0) as total_duration,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN total_cost IS NOT NULL THEN total_cost
+                        WHEN end_time IS NOT NULL AND start_time IS NOT NULL THEN
+                            ROUND(((julianday(end_time) - julianday(start_time)) * 24 * 60) / 60.0 * 
+                                COALESCE((
+                                    SELECT z.hourly_rate 
+                                    FROM parking_spaces ps2
+                                    LEFT JOIN zone_parking_spaces zps2 ON ps2.id = zps2.parking_space_id
+                                    LEFT JOIN parking_zones z ON zps2.zone_id = z.id
+                                    WHERE ps2.id = pu.parking_space_id
+                                ), 2.0), 2)
+                        ELSE 0
+                    END
+                ), 0) as total_revenue,
+                COALESCE(AVG(
+                    CASE 
+                        WHEN duration_minutes IS NOT NULL THEN duration_minutes
+                        WHEN end_time IS NOT NULL AND start_time IS NOT NULL 
+                        THEN ROUND((julianday(end_time) - julianday(start_time)) * 24 * 60)
+                        ELSE NULL
+                    END
+                ), 0) as avg_duration
             FROM parking_usage 
             WHERE end_time IS NOT NULL
         ");
@@ -1661,69 +2265,102 @@ class Database {
     
     // Get parking usage history
     public function getParkingUsage($limit = 100, $offset = 0, $filters = []) {
-        $where_conditions = [];
-        $params = [];
-        $param_count = 1;
-        
-        if (!empty($filters['license_plate'])) {
-            $where_conditions[] = "license_plate LIKE ?";
-            $params[] = '%' . $filters['license_plate'] . '%';
-            $param_count++;
-        }
-        
-        if (!empty($filters['date_from'])) {
-            $where_conditions[] = "start_time >= ?";
-            $params[] = $filters['date_from'];
-            $param_count++;
-        }
-        
-        if (!empty($filters['date_to'])) {
-            $where_conditions[] = "start_time <= ?";
-            $params[] = $filters['date_to'];
-            $param_count++;
-        }
-        
-        $where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
-        
-        $sql = "
-            SELECT 
-                pu.*,
-                ps.id as parking_space_id,
-                s.street_name
-            FROM parking_usage pu
-            JOIN parking_spaces ps ON pu.parking_space_id = ps.id
-            JOIN sensors s ON ps.sensor_id = s.id
-            {$where_clause}
-            ORDER BY pu.start_time DESC
-            LIMIT ? OFFSET ?
-        ";
-        
-        $params[] = $limit;
-        $params[] = $offset;
-        
-        $stmt = $this->db->prepare($sql);
-        foreach ($params as $index => $param) {
-            $stmt->bindValue($index + 1, $param);
-        }
-        
-        $result = $stmt->execute();
-        $usage = [];
-        
-        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-            $usage[] = [
-                'id' => $row['id'],
-                'license_plate' => $row['license_plate'],
-                'parking_space_id' => $row['parking_space_id'],
-                'street_name' => $row['street_name'],
-                'start_time' => $row['start_time'],
-                'end_time' => $row['end_time'],
-                'duration_minutes' => $row['duration_minutes'],
-                'total_cost' => $row['total_cost'],
-                'created_at' => $row['created_at']
-            ];
-        }
-        
-        return $usage;
+        return $this->executeWithRetry(function() use ($limit, $offset, $filters) {
+            $where_conditions = [];
+            $params = [];
+            $param_count = 1;
+            
+            if (!empty($filters['license_plate'])) {
+                $where_conditions[] = "license_plate LIKE ?";
+                $params[] = '%' . $filters['license_plate'] . '%';
+                $param_count++;
+            }
+            
+            if (!empty($filters['date_from'])) {
+                $where_conditions[] = "start_time >= ?";
+                $params[] = $filters['date_from'];
+                $param_count++;
+            }
+            
+            if (!empty($filters['date_to'])) {
+                $where_conditions[] = "start_time <= ?";
+                $params[] = $filters['date_to'];
+                $param_count++;
+            }
+            
+            $where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
+            
+            // Join with zones to get hourly_rate for cost calculation
+            $sql = "
+                SELECT 
+                    pu.*,
+                    ps.id as parking_space_id,
+                    s.street_name,
+                    COALESCE(z.hourly_rate, 2.0) as hourly_rate
+                FROM parking_usage pu
+                JOIN parking_spaces ps ON pu.parking_space_id = ps.id
+                JOIN sensors s ON ps.sensor_id = s.id
+                LEFT JOIN zone_parking_spaces zps ON ps.id = zps.parking_space_id
+                LEFT JOIN parking_zones z ON zps.zone_id = z.id
+                {$where_clause}
+                ORDER BY pu.start_time DESC
+                LIMIT ? OFFSET ?
+            ";
+            
+            $params[] = $limit;
+            $params[] = $offset;
+            
+            $stmt = $this->db->prepare($sql);
+            foreach ($params as $index => $param) {
+                $stmt->bindValue($index + 1, $param);
+            }
+            
+            $result = $stmt->execute();
+            $usage = [];
+            
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $hourly_rate = (float)($row['hourly_rate'] ?? 2.0);
+                
+                // Calculate duration and cost if missing but end_time exists
+                $duration_minutes = $row['duration_minutes'];
+                $total_cost = $row['total_cost'];
+                
+                if ($row['end_time'] && (!$duration_minutes || !$total_cost)) {
+                    // Calculate duration from start_time and end_time
+                    $duration_minutes = (int)round((strtotime($row['end_time']) - strtotime($row['start_time'])) / 60);
+                    
+                    // Calculate cost: (duration_minutes / 60) * hourly_rate
+                    $total_cost = round(($duration_minutes / 60.0) * $hourly_rate, 2);
+                    
+                    // Update the database record if missing
+                    if (!$row['duration_minutes'] || !$row['total_cost']) {
+                        $update_stmt = $this->db->prepare("
+                            UPDATE parking_usage 
+                            SET duration_minutes = ?, total_cost = ?
+                            WHERE id = ?
+                        ");
+                        $update_stmt->bindValue(1, $duration_minutes);
+                        $update_stmt->bindValue(2, $total_cost);
+                        $update_stmt->bindValue(3, $row['id']);
+                        $update_stmt->execute();
+                    }
+                }
+                
+                $usage[] = [
+                    'id' => $row['id'],
+                    'license_plate' => $row['license_plate'],
+                    'parking_space_id' => $row['parking_space_id'],
+                    'street_name' => $row['street_name'],
+                    'start_time' => $row['start_time'],
+                    'end_time' => $row['end_time'],
+                    'duration_minutes' => $duration_minutes,
+                    'total_cost' => $total_cost,
+                    'created_at' => $row['created_at']
+                ];
+            }
+            
+            return $usage;
+        });
     }
     
     // Get active sessions (current reservations and occupied spaces)
@@ -2066,6 +2703,101 @@ class Database {
             return $result->fetchArray(SQLITE3_ASSOC);
         } catch (Exception $e) {
             error_log("Database::getTelegramUserByLicensePlate: Exception - " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    // Wallet connection methods
+    // Save wallet connection - license_plate is the primary key (shared between web and telegram)
+    public function saveWalletConnection($license_plate, $wallet_address, $password_hash = null, $device_id = null, $telegram_user_id = null) {
+        try {
+            // Check if connection already exists for this license_plate
+            $stmt = $this->db->prepare("SELECT id FROM wallet_connections WHERE license_plate = ?");
+            $stmt->bindValue(1, $license_plate);
+            $result = $stmt->execute();
+            $existing = $result->fetchArray(SQLITE3_ASSOC);
+            
+            if ($existing) {
+                // Update existing connection - add device_id or telegram_user_id if provided
+                $stmt = $this->db->prepare("
+                    UPDATE wallet_connections 
+                    SET wallet_address = ?,
+                        password_hash = COALESCE(?, password_hash),
+                        device_id = COALESCE(?, device_id),
+                        telegram_user_id = COALESCE(?, telegram_user_id),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE license_plate = ?
+                ");
+                $stmt->bindValue(1, $wallet_address);
+                $stmt->bindValue(2, $password_hash);
+                $stmt->bindValue(3, $device_id);
+                $stmt->bindValue(4, $telegram_user_id);
+                $stmt->bindValue(5, $license_plate);
+            } else {
+                // Create new connection - license_plate is UNIQUE
+                $stmt = $this->db->prepare("
+                    INSERT INTO wallet_connections (license_plate, wallet_address, password_hash, device_id, telegram_user_id)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->bindValue(1, $license_plate);
+                $stmt->bindValue(2, $wallet_address);
+                $stmt->bindValue(3, $password_hash);
+                $stmt->bindValue(4, $device_id);
+                $stmt->bindValue(5, $telegram_user_id);
+            }
+            
+            if ($stmt->execute()) {
+                return ['success' => true, 'message' => 'Wallet connection saved and synced across environments', 'wallet_address' => $wallet_address];
+            }
+            
+            return ['success' => false, 'error' => 'Failed to save wallet connection'];
+        } catch (Exception $e) {
+            error_log("saveWalletConnection error: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+    
+    // Get wallet connection by license_plate (works for both web and telegram)
+    public function getWalletConnection($license_plate) {
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM wallet_connections WHERE license_plate = ?");
+            $stmt->bindValue(1, $license_plate);
+            $result = $stmt->execute();
+            $connection = $result->fetchArray(SQLITE3_ASSOC);
+            
+            return $connection ? $connection : null;
+        } catch (Exception $e) {
+            error_log("getWalletConnection error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    // Get wallet by telegram_user_id
+    public function getWalletConnectionByTelegramUser($telegram_user_id) {
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM wallet_connections WHERE telegram_user_id = ?");
+            $stmt->bindValue(1, $telegram_user_id);
+            $result = $stmt->execute();
+            $connection = $result->fetchArray(SQLITE3_ASSOC);
+            
+            return $connection ? $connection : null;
+        } catch (Exception $e) {
+            error_log("getWalletConnectionByTelegramUser error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    // Get wallet by device_id (web)
+    public function getWalletConnectionByDeviceId($device_id) {
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM wallet_connections WHERE device_id = ?");
+            $stmt->bindValue(1, $device_id);
+            $result = $stmt->execute();
+            $connection = $result->fetchArray(SQLITE3_ASSOC);
+            
+            return $connection ? $connection : null;
+        } catch (Exception $e) {
+            error_log("getWalletConnectionByDeviceId error: " . $e->getMessage());
             return false;
         }
     }

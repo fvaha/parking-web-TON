@@ -112,6 +112,9 @@ class WalletCommand {
     public function showWalletConnectPrompt($bot, $chat_id, $lang) {
         $text = LanguageService::t('wallet_enter_address', $lang);
         
+        // Remove reply keyboard so user can type wallet address freely
+        $bot->removeReplyKeyboard($chat_id);
+        
         $bot->sendMessage([
             'chat_id' => $chat_id,
             'text' => $text,

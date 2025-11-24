@@ -136,13 +136,28 @@ function copyToDist() {
     log('✓ Created database/.gitkeep', 'green');
   }
   
+  // Create logs folder (empty, log files will be created automatically by TCP server)
+  const logsPath = path.join(distPath, 'logs');
+  if (!fs.existsSync(logsPath)) {
+    fs.mkdirSync(logsPath, { recursive: true });
+    log('✓ Created logs/ folder (empty)', 'green');
+  }
+  
+  // Create .gitkeep in logs folder to ensure it's tracked
+  const logsGitkeepPath = path.join(logsPath, '.gitkeep');
+  if (!fs.existsSync(logsGitkeepPath)) {
+    fs.writeFileSync(logsGitkeepPath, '');
+    log('✓ Created logs/.gitkeep', 'green');
+  }
+
+  
   // Note: Public files (tonconnect-manifest.json, vite.svg) are already copied by Vite
   log('ℹ Public files (tonconnect-manifest.json, vite.svg) are handled by Vite', 'blue');
   
   log('\n✅ All files copied to dist/ folder!\n', 'green');
   log('📋 Files ready for deployment:', 'blue');
   log('   - dist/ → Upload to parkiraj.info root', 'blue');
-  log('   - Contains: api/, config/, telegram-bot/, database/, .htaccess\n', 'blue');
+  log('   - Contains: api/, config/, telegram-bot/, database/, logs/, .htaccess\n', 'blue');
 }
 
 // Run the script

@@ -249,13 +249,43 @@ class ReserveCommand {
                     $duration_text = "\n\nDuration: {$max_duration_hours}h (default)";
                 }
             
-            $bot->sendMessage([
+            // Get space to get coordinates for navigation
+            $space = $parking_service->getSpaceById($space_id);
+            
+            // Create navigation keyboard if coordinates are available
+            $keyboard = null;
+            if ($space && isset($space['coordinates']) && isset($space['coordinates']['lat']) && isset($space['coordinates']['lng'])) {
+                $lat = $space['coordinates']['lat'];
+                $lng = $space['coordinates']['lng'];
+                if ($lat != 0.0 && $lng != 0.0) {
+                    // Create Google Maps URL - will open in app if installed, otherwise in browser
+                    $maps_url = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
+                    $keyboard = [
+                        'inline_keyboard' => [
+                            [
+                                [
+                                    'text' => LanguageService::t('navigate', $lang),
+                                    'url' => $maps_url
+                                ]
+                            ]
+                        ]
+                    ];
+                }
+            }
+            
+            $message_params = [
                 'chat_id' => $chat_id,
                 'text' => LanguageService::t('reserve_success', $lang, [
                     'space_id' => $space_id,
                     'license_plate' => $user_data['license_plate']
                 ]) . $duration_text
-            ]);
+            ];
+            
+            if ($keyboard) {
+                $message_params['reply_markup'] = json_encode($keyboard);
+            }
+            
+            $bot->sendMessage($message_params);
         } else {
             // Get more detailed error message
             $error_msg = LanguageService::t('reserve_failed', $lang);
@@ -931,7 +961,31 @@ class ReserveCommand {
                     $duration_text = "\n\nDuration: *{$max_duration_hours}h* (default)";
                 }
             
-            $bot->sendMessage([
+            // Get space to get coordinates for navigation
+            $space = $parking_service->getSpaceById($space_id);
+            
+            // Create navigation keyboard if coordinates are available
+            $keyboard = null;
+            if ($space && isset($space['coordinates']) && isset($space['coordinates']['lat']) && isset($space['coordinates']['lng'])) {
+                $lat = $space['coordinates']['lat'];
+                $lng = $space['coordinates']['lng'];
+                if ($lat != 0.0 && $lng != 0.0) {
+                    // Create Google Maps URL - will open in app if installed, otherwise in browser
+                    $maps_url = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
+                    $keyboard = [
+                        'inline_keyboard' => [
+                            [
+                                [
+                                    'text' => LanguageService::t('navigate', $lang),
+                                    'url' => $maps_url
+                                ]
+                            ]
+                        ]
+                    ];
+                }
+            }
+            
+            $message_params = [
                 'chat_id' => $chat_id,
                 'text' => LanguageService::t('reserve_success_premium', $lang, [
                     'space_id' => $space_id,
@@ -939,7 +993,13 @@ class ReserveCommand {
                     'amount_ton' => $hourly_rate
                 ]) . $duration_text,
                 'parse_mode' => 'Markdown'
-            ]);
+            ];
+            
+            if ($keyboard) {
+                $message_params['reply_markup'] = json_encode($keyboard);
+            }
+            
+            $bot->sendMessage($message_params);
         } else {
             $bot->sendMessage([
                 'chat_id' => $chat_id,

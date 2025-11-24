@@ -10,6 +10,7 @@ interface ParkingSpaceCardProps {
   on_navigate: (coordinates: { lat: number; lng: number }) => void;
   on_complete_session: (space: ParkingSpace) => void;
   active_session?: ActiveSession | null;
+  license_plate?: string | null;
 }
 
 export const ParkingSpaceCard: React.FC<ParkingSpaceCardProps> = ({
@@ -18,7 +19,8 @@ export const ParkingSpaceCard: React.FC<ParkingSpaceCardProps> = ({
   on_reserve,
   on_navigate,
   on_complete_session,
-  active_session
+  active_session,
+  license_plate
 }) => {
   const language_service = LanguageService.getInstance();
   const [remaining_time, set_remaining_time] = useState<number | null>(null);
@@ -32,13 +34,17 @@ export const ParkingSpaceCard: React.FC<ParkingSpaceCardProps> = ({
         const remaining_ms = end_time - now;
         
         if (remaining_ms <= 0) {
-          // Reservation expired - auto complete
+          // Reservation expired - auto complete ONLY if this is the user's reservation
           set_remaining_time(0);
           set_time_percentage(0);
-          // Trigger auto-complete after a short delay
-          setTimeout(() => {
-            on_complete_session(space);
-          }, 1000);
+          
+          // Only auto-complete if this is the user's own reservation
+          if (space.license_plate === license_plate && license_plate) {
+            // Trigger auto-complete after a short delay
+            setTimeout(() => {
+              on_complete_session(space);
+            }, 1000);
+          }
           return;
         }
         
@@ -67,14 +73,14 @@ export const ParkingSpaceCard: React.FC<ParkingSpaceCardProps> = ({
       set_remaining_time(null);
       set_time_percentage(100);
     }
-  }, [space.status, space.reservation_end_time, space.reservation_time, on_complete_session, space]);
+  }, [space.status, space.reservation_end_time, space.reservation_time, space.license_plate, license_plate, on_complete_session, space]);
 
   const get_circle_color = () => {
     if (!remaining_time) return '#10b981'; // Green (default)
     if (remaining_time <= 10) return '#ef4444'; // Red (last 10 minutes)
     if (time_percentage < 50) return '#10b981'; // Green (first half)
     if (time_percentage < 75) return '#f59e0b'; // Orange (middle)
-    return '#3b82f6'; // Blue (early)
+    return '#6b7280'; // Gray (early)
   };
 
   const get_circle_opacity = () => {
@@ -227,7 +233,7 @@ export const ParkingSpaceCard: React.FC<ParkingSpaceCardProps> = ({
           </>
         )}
 
-        {space.status === 'reserved' && (
+        {space.status === 'reserved' && space.license_plate === license_plate && (
           <button
             className="complete-btn"
             onClick={() => on_complete_session(space)}

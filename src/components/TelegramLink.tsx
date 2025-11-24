@@ -186,7 +186,7 @@ export const TelegramLink: React.FC<TelegramLinkProps> = ({ license_plate, on_co
                 fontSize: '0.9rem',
                 fontWeight: '500',
                 cursor: 'pointer',
-                background: '#3b82f6',
+                background: '#6b7280',
                 color: 'white',
                 flex: '1',
                 minWidth: '120px'

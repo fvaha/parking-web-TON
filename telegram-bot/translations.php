@@ -147,6 +147,7 @@ return [
         'username_invalid' => "❌ Username cannot be empty.",
         'yes' => 'Yes',
         'no' => 'No',
+        'navigate' => '🧭 Navigate',
         'none' => 'None',
         'on' => 'ON',
         'off' => 'OFF',
@@ -298,6 +299,7 @@ return [
         'username_invalid' => "❌ Korisničko ime ne može biti prazno.",
         'yes' => 'Da',
         'no' => 'Ne',
+        'navigate' => '🧭 Navigacija',
         'none' => 'Nema',
         'on' => 'UKLJUČENO',
         'off' => 'ISKLJUČENO',
@@ -449,6 +451,7 @@ return [
         'username_invalid' => "❌ Benutzername darf nicht leer sein.",
         'yes' => 'Ja',
         'no' => 'Nein',
+        'navigate' => '🧭 Navigieren',
         'none' => 'Keine',
         'on' => 'EIN',
         'off' => 'AUS',
@@ -600,6 +603,7 @@ return [
         'username_invalid' => "❌ Le nom d'utilisateur ne peut pas être vide.",
         'yes' => 'Oui',
         'no' => 'Non',
+        'navigate' => '🧭 Naviguer',
         'none' => 'Aucun',
         'on' => 'ACTIVÉ',
         'off' => 'DÉSACTIVÉ',
@@ -745,6 +749,7 @@ return [
         'username_invalid' => "❌ لا يمكن أن يكون اسم المستخدم فارغًا.",
         'yes' => 'نعم',
         'no' => 'لا',
+        'navigate' => '🧭 التنقل',
         'none' => 'لا شيء',
         'on' => 'تشغيل',
         'off' => 'إيقاف',

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
-import { TonConnectUIProvider, TonConnectButton } from '@tonconnect/ui-react';
 import { LicensePlateInput } from './components/LicensePlateInput';
 import { ParkingMap } from './components/ParkingMap';
 import { ParkingSpaceCard } from './components/ParkingSpaceCard';
@@ -9,12 +8,15 @@ import AdminLogin from './components/AdminLogin';
 import { Header } from './components/Header';
 import { TelegramLink } from './components/TelegramLink';
 import { BottomSheet } from './components/BottomSheet';
-import { WalletBottomSheet } from './components/WalletBottomSheet';
+import { WalletConnectSheet } from './components/WalletConnectSheet';
 import { StorageService } from './services/storage_service';
 import AdminService from './services/admin_service';
 import { LanguageService } from './services/language_service';
 import { TonPaymentService } from './services/ton_payment_service';
+import { TonWalletService } from './services/ton_wallet_service';
+import type { TransactionStatus } from './services/ton_api_service';
 import { TelegramWebAppService } from './services/telegram_webapp_service';
+import { TonConnectUI } from '@tonconnect/ui-react';
 import { MAPS_CONFIG, GOOGLE_MAPS_URLS, get_maps_api_key } from './config/maps_config';
 import { build_api_url, create_api_options } from './config/api_config';
 
@@ -44,16 +46,49 @@ function App() {
   const admin_service = AdminService.getInstance();
   const language_service = LanguageService.getInstance();
   const ton_payment_service = TonPaymentService.getInstance();
+  const ton_wallet_service = TonWalletService.getInstance();
   const telegram_webapp = TelegramWebAppService.getInstance();
   
   const [payment_processing, set_payment_processing] = useState(false);
   const [payment_tx_hash, set_payment_tx_hash] = useState<string | null>(null);
+  const [payment_tx_status, set_payment_tx_status] = useState<'pending' | 'confirmed' | 'failed' | null>(null);
   const [wallet_connected, set_wallet_connected] = useState(false);
   const [show_wallet_sheet, set_show_wallet_sheet] = useState(false);
   const [reservation_duration_hours, set_reservation_duration_hours] = useState<number>(1);
   const [is_telegram_webapp, set_is_telegram_webapp] = useState(false);
   const [telegram_user, set_telegram_user] = useState<any>(null);
+  const [user_location, set_user_location] = useState<{ lat: number; lng: number } | null>(null);
   const check_wallet_timeout_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const check_wallet_in_progress_ref = useRef<boolean>(false);
+  const last_wallet_check_ref = useRef<number>(0);
+
+  useEffect(() => {
+    // Set default location immediately (no geolocation request without user gesture)
+    set_user_location(MAPS_CONFIG.USER_LOCATION);
+  }, []);
+
+  // Request geolocation only when user interacts with the map
+  const request_user_location = () => {
+    if (navigator.geolocation && (!user_location || (user_location.lat === MAPS_CONFIG.USER_LOCATION.lat && user_location.lng === MAPS_CONFIG.USER_LOCATION.lng))) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          set_user_location({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.warn('Geolocation error:', error);
+          // Keep default location if geolocation fails
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+  };
 
   useEffect(() => {
     // Check if opened from Telegram Web App
@@ -69,7 +104,7 @@ function App() {
       }
       
       // Configure Telegram Web App appearance
-      telegram_webapp.setHeaderColor('#3b82f6');
+      telegram_webapp.setHeaderColor('#6b7280');
       telegram_webapp.setBackgroundColor('#ffffff');
     }
     
@@ -144,10 +179,9 @@ function App() {
         set_reservation_duration_hours(1); // Reset to 1 hour when opening
         set_show_reservation_modal(true);
         
-        // If premium, ensure TON Connect is initialized
+        // If premium, check wallet connection
         if (is_premium && space.zone?.is_premium) {
           setTimeout(() => {
-            ton_payment_service.ensureInitialized();
             check_wallet_connection();
           }, 200);
         }
@@ -165,246 +199,125 @@ function App() {
     }
   }, [parking_spaces, license_plate]); // Run when data is loaded
 
-  // Initialize TON Connect on app load
+  // Auto-refresh parking data every 30 seconds to keep map updated in real-time
   useEffect(() => {
-    // Initialize TON Connect when app loads
-    // Wait for DOM to be ready
-    const init_ton_connect = () => {
-      if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        console.log('[DEBUG] App.tsx - Initializing TON Connect on app load');
-        const initialized = ton_payment_service.ensureInitialized();
-        if (initialized) {
-          console.log('[DEBUG] App.tsx - TON Connect initialized successfully');
+    // Only start polling if we have data loaded
+    if (parking_spaces.length === 0 && sensors.length === 0) {
+      return;
+    }
+
+    const refresh_interval = setInterval(() => {
+      // Silently refresh data to update map with latest status
+      load_data(true);
+    }, 5000); // Refresh every 5 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(refresh_interval);
+    };
+  }, [parking_spaces.length, sensors.length]); // Re-run if data changes
+
+  // Initialize TON Connect UI on app load
+  useEffect(() => {
+    // Initialize TON Connect UI as soon as app loads to restore wallet connection
+    const initTonConnect = () => {
+      try {
+        // Create button root element for TonConnectUI
+        let button_element = document.getElementById('ton-connect-button-root');
+        if (!button_element) {
+          button_element = document.createElement('div');
+          button_element.id = 'ton-connect-button-root';
+          button_element.style.display = 'none';
+          document.body.appendChild(button_element);
+        }
+
+        // Initialize TonConnectUI
+        const ui = new TonConnectUI({
+          manifestUrl: `${window.location.origin}/tonconnect-manifest.json`,
+          buttonRootId: 'ton-connect-button-root',
+          restoreConnection: true
+        });
+
+        // Share TonConnectUI instance with TonPaymentService
+        ton_payment_service.setTonConnectUI(ui);
+
+        // Listen for wallet connection changes
+        ui.onStatusChange((wallet) => {
+          if (wallet && wallet.account) {
+            const address = wallet.account.address;
+            ton_wallet_service.setWalletAddress(address);
+            set_wallet_connected(true);
+          } else {
+            ton_wallet_service.disconnect();
+            set_wallet_connected(false);
+            set_payment_tx_hash(null);
+            set_payment_tx_status(null);
+          }
+        });
+
+        // Check if wallet is already connected after restoration
+        ui.connectionRestored.then(() => {
+          if (ui.wallet && ui.wallet.account) {
+            const address = ui.wallet.account.address;
+            ton_wallet_service.setWalletAddress(address);
+            set_wallet_connected(true);
+          }
+          // Also check wallet connection status
           check_wallet_connection();
-        } else {
-          console.log('[DEBUG] App.tsx - TON Connect initialization in progress (will retry)');
-          // Check again after a delay
-          setTimeout(() => {
-            check_wallet_connection();
-          }, 1000);
-        }
-      } else {
-        // Wait for DOM to be ready
-        const handle_dom_ready = () => {
-          init_ton_connect();
-        };
-        if (document.addEventListener) {
-          document.addEventListener('DOMContentLoaded', handle_dom_ready, { once: true });
-        }
-        // Also try after a short delay as fallback
-        setTimeout(init_ton_connect, 500);
+        }).catch(() => {
+          // Ignore restoration errors, but still check connection
+          check_wallet_connection();
+        });
+      } catch (error) {
+        console.error('Failed to initialize TON Connect UI:', error);
+        // Still check wallet connection even if initialization fails
+        check_wallet_connection();
       }
     };
-    
-    // Start initialization
-    init_ton_connect();
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      initTonConnect();
+    } else {
+      const handle_dom_ready = () => {
+        initTonConnect();
+      };
+      if (document.addEventListener) {
+        document.addEventListener('DOMContentLoaded', handle_dom_ready, { once: true });
+      }
+      // Also try after a short delay as fallback
+      setTimeout(() => {
+        initTonConnect();
+      }, 500);
+    }
   }, []); // Run only once on mount
 
-  const check_wallet_connection = async () => {
-    console.log('[DEBUG] check_wallet_connection - called');
-    
+  const check_wallet_connection = () => {
     // Debounce: Clear any pending check
     if (check_wallet_timeout_ref.current) {
-      console.log('[DEBUG] check_wallet_connection - clearing pending timeout');
       clearTimeout(check_wallet_timeout_ref.current);
     }
     
     // Schedule check in next tick to avoid blocking
-    check_wallet_timeout_ref.current = setTimeout(async () => {
-      console.log('[DEBUG] check_wallet_connection - starting check');
+    check_wallet_timeout_ref.current = setTimeout(() => {
+      check_wallet_in_progress_ref.current = true;
+      last_wallet_check_ref.current = Date.now();
       
-      // Ensure TON Connect is initialized before checking
-      ton_payment_service.ensureInitialized();
-      console.log('[DEBUG] check_wallet_connection - TON Connect initialized');
-      
-      // Try to get TonConnectUI instance directly
-      const tonConnectUI = ton_payment_service.getTonConnectUI();
-      console.log('[DEBUG] check_wallet_connection - tonConnectUI instance:', tonConnectUI ? 'exists' : 'null');
-      
-      let connected = false;
-      let wallet_info: { address: string; name: string } | null = null;
-      
-      // Check wallet status from TonConnectUI instance
-      if (tonConnectUI) {
-        try {
-          // Check wallet property directly
-          const wallet = tonConnectUI.wallet;
-          console.log('[DEBUG] check_wallet_connection - tonConnectUI.wallet:', wallet ? 'exists' : 'null', wallet ? JSON.stringify(wallet).substring(0, 100) : '');
-          
-          connected = wallet !== null && wallet !== undefined;
-          console.log('[DEBUG] check_wallet_connection - initial connected status:', connected);
-          
-          // Also check if wallet has account property (more reliable check)
-          if (connected && wallet && typeof wallet === 'object' && 'account' in wallet) {
-            const account = (wallet as any).account;
-            console.log('[DEBUG] check_wallet_connection - wallet.account:', account ? JSON.stringify(account).substring(0, 100) : 'null');
-            
-            connected = account !== null && account !== undefined && account.address !== undefined;
-            console.log('[DEBUG] check_wallet_connection - account validation:', {
-              account_exists: account !== null,
-              account_defined: account !== undefined,
-              address_exists: account?.address !== undefined,
-              final_connected: connected
-            });
-            
-            if (connected) {
-              wallet_info = {
-                address: account.address,
-                name: (wallet as any).name || 'Unknown'
-              };
-              console.log('[DEBUG] check_wallet_connection - wallet_info set:', wallet_info);
-            }
-          }
-          
-          console.log('[DEBUG] check_wallet_connection - wallet status:', connected, wallet ? `connected (${(wallet as any).account?.address?.substring(0, 10)}...)` : 'not connected');
-        } catch (error) {
-          console.error('[DEBUG] check_wallet_connection - Error checking wallet from TonConnectUI:', error);
-        }
-      } else {
-        console.log('[DEBUG] check_wallet_connection - tonConnectUI is null, skipping instance check');
-      }
-      
-      // If main instance doesn't have wallet, check if there's a fallback instance
-      // This can happen if wallet was connected through WalletBottomSheet fallback instance
-      // localStorage is the right place to store this - it's per browser/device, not per user
-      if (!connected) {
-        console.log('[DEBUG] check_wallet_connection - instance check failed, checking localStorage');
-        try {
-          // Try to check localStorage for wallet connection (TonConnect stores it there)
-          // TonConnect uses different storage keys, try multiple possible locations
-          const storage_keys = ['ton-connect-storage', 'tonconnect-storage', 'tonconnect'];
-          console.log('[DEBUG] check_wallet_connection - checking localStorage keys:', storage_keys);
-          
-          for (const key of storage_keys) {
-            console.log('[DEBUG] check_wallet_connection - checking localStorage key:', key);
-            const tonconnect_storage = localStorage.getItem(key);
-            console.log('[DEBUG] check_wallet_connection - localStorage.getItem result:', tonconnect_storage ? `exists (${tonconnect_storage.length} chars)` : 'null');
-            
-            if (tonconnect_storage) {
-              try {
-                const storage_data = JSON.parse(tonconnect_storage);
-                
-                // Debug: log full structure to understand what TonConnect stores
-                console.log('[DEBUG] check_wallet_connection - localStorage key:', key, 'full structure:', JSON.stringify(storage_data));
-                console.log('[DEBUG] check_wallet_connection - storage_data keys:', Object.keys(storage_data));
-                
-                // Try different possible structures
-                let stored_wallet: any = null;
-                
-                // Structure 1: storage_data.Connector.wallet
-                if (storage_data?.Connector?.wallet) {
-                  console.log('[DEBUG] check_wallet_connection - found wallet in structure 1: storage_data.Connector.wallet');
-                  stored_wallet = storage_data.Connector.wallet;
-                }
-                // Structure 2: storage_data.wallet
-                else if (storage_data?.wallet) {
-                  console.log('[DEBUG] check_wallet_connection - found wallet in structure 2: storage_data.wallet');
-                  stored_wallet = storage_data.wallet;
-                }
-                // Structure 3: storage_data directly
-                else if (storage_data?.account) {
-                  console.log('[DEBUG] check_wallet_connection - found wallet in structure 3: storage_data.account');
-                  stored_wallet = storage_data;
-                }
-                // Structure 4: Check all keys in storage_data for nested wallet
-                else {
-                  console.log('[DEBUG] check_wallet_connection - checking structure 4: nested keys');
-                  // Try to find wallet in any key
-                  for (const storage_key in storage_data) {
-                    console.log('[DEBUG] check_wallet_connection - checking nested key:', storage_key);
-                    if (storage_data[storage_key]?.wallet) {
-                      console.log('[DEBUG] check_wallet_connection - found wallet in nested key.wallet:', storage_key);
-                      stored_wallet = storage_data[storage_key].wallet;
-                      break;
-                    }
-                    if (storage_data[storage_key]?.account) {
-                      console.log('[DEBUG] check_wallet_connection - found wallet in nested key.account:', storage_key);
-                      stored_wallet = storage_data[storage_key];
-                      break;
-                    }
-                    // Also check nested structures
-                    if (storage_data[storage_key] && typeof storage_data[storage_key] === 'object') {
-                      const nested = storage_data[storage_key];
-                      console.log('[DEBUG] check_wallet_connection - checking nested object:', storage_key, 'keys:', Object.keys(nested));
-                      if (nested.wallet) {
-                        console.log('[DEBUG] check_wallet_connection - found wallet in nested.wallet:', storage_key);
-                        stored_wallet = nested.wallet;
-                        break;
-                      }
-                      if (nested.account) {
-                        console.log('[DEBUG] check_wallet_connection - found wallet in nested.account:', storage_key);
-                        stored_wallet = nested;
-                        break;
-                      }
-                    }
-                  }
-                }
-                
-                console.log('[DEBUG] check_wallet_connection - stored_wallet result:', stored_wallet ? JSON.stringify(stored_wallet).substring(0, 200) : 'null');
-                
-                if (stored_wallet && stored_wallet.account && stored_wallet.account.address) {
-                  connected = true;
-                  wallet_info = {
-                    address: stored_wallet.account.address,
-                    name: stored_wallet.name || 'Unknown'
-                  };
-                  console.log('[DEBUG] check_wallet_connection - ✅ FOUND WALLET in localStorage:', key, wallet_info.address.substring(0, 10));
-                  break; // Found wallet, no need to check other keys
-                } else {
-                  console.log('[DEBUG] check_wallet_connection - wallet not found in key:', key, 'stored_wallet:', stored_wallet);
-                }
-              } catch (parseError) {
-                console.error('[DEBUG] check_wallet_connection - Error parsing localStorage key:', key, parseError);
-                // Continue to next key
-                continue;
-              }
-            } else {
-              console.log('[DEBUG] check_wallet_connection - localStorage key not found:', key);
-            }
-          }
-        } catch (error) {
-          console.error('[DEBUG] check_wallet_connection - Error checking localStorage:', error);
-        }
-      } else {
-        console.log('[DEBUG] check_wallet_connection - wallet already connected from instance, skipping localStorage check');
-      }
-      
-      // Fallback to service method if direct check didn't work
-      if (!connected) {
-        console.log('[DEBUG] check_wallet_connection - calling service method as fallback');
-        try {
-          connected = await ton_payment_service.isWalletConnected();
-          console.log('[DEBUG] check_wallet_connection - service method returned:', connected);
-        } catch (error) {
-          console.error('[DEBUG] check_wallet_connection - Error in service isWalletConnected:', error);
-        }
-      }
-      
-      console.log('[DEBUG] check_wallet_connection - ✅ FINAL STATUS:', connected, wallet_info ? `(${wallet_info.address.substring(0, 10)}...)` : '');
+      // Check wallet connection using TonWalletService
+      const connected = ton_wallet_service.isWalletConnected();
       
       // Only update state if we actually found a wallet connection
-      // If connected is false but wallet_connected is already true (set by WalletBottomSheet callback),
-      // don't reset it - the callback is more reliable since it has direct access to the wallet instance
       if (connected) {
-        console.log('[DEBUG] check_wallet_connection - setting wallet_connected state to: true');
         set_wallet_connected(true);
       } else {
-        // Only set to false if we're sure it's disconnected
-        // But if wallet_connected is already true (from callback), don't reset it
-        // This prevents the callback's true state from being overwritten
-        console.log('[DEBUG] check_wallet_connection - wallet not found, but not resetting state if already true (may be set by callback)');
-        // Don't automatically set to false - let WalletBottomSheet callback handle disconnection
-      }
-      
-      // If wallet is disconnected, clear payment state
-      if (!connected) {
-        console.log('[DEBUG] check_wallet_connection - wallet disconnected, clearing payment_tx_hash');
+        // If wallet is disconnected, clear payment state
         set_payment_tx_hash(null);
+        set_payment_tx_status(null);
       }
       
       check_wallet_timeout_ref.current = null;
-      console.log('[DEBUG] check_wallet_connection - check completed');
-    }, 50); // Small delay to debounce rapid calls
+      check_wallet_in_progress_ref.current = false;
+    }, 300); // Debounce delay - increased to reduce calls
   };
 
   const handle_disconnect_wallet = async () => {
@@ -430,7 +343,7 @@ function App() {
     }
   };
   
-  // Initialize TON Connect when modal opens with premium zone
+  // Check wallet connection when modal opens with premium zone
   useEffect(() => {
     if (show_reservation_modal && selected_space) {
       // Check if premium zone
@@ -438,43 +351,8 @@ function App() {
                         (typeof selected_space.zone?.is_premium === 'number' && selected_space.zone.is_premium === 1);
       
       if (is_premium) {
-        // Wait a bit for DOM to render the button element
-        const timer = setTimeout(() => {
-          ton_payment_service.ensureInitialized();
-          
-          // Check wallet connection immediately
-          check_wallet_connection();
-          
-          // Set up listener for wallet status changes
-          const tonConnectUI = ton_payment_service.getTonConnectUI();
-          if (tonConnectUI) {
-            // Check if wallet is already connected when modal opens
-            if (tonConnectUI.wallet) {
-              console.log('Wallet already connected when modal opened');
-              set_wallet_connected(true);
-            }
-            
-            // Listen for wallet status changes
-            tonConnectUI.onStatusChange((wallet) => {
-              console.log('Wallet status changed in modal:', wallet);
-              // Force state update when wallet status changes
-              if (wallet) {
-                set_wallet_connected(true);
-              } else {
-                set_wallet_connected(false);
-                set_payment_tx_hash(null);
-              }
-              // Also check through service
-              check_wallet_connection();
-            });
-          }
-          
-          // Re-check after a short delay to ensure state is updated
-          setTimeout(() => {
-            check_wallet_connection();
-          }, 500);
-        }, 100);
-        return () => clearTimeout(timer);
+        // Check wallet connection immediately
+        check_wallet_connection();
       }
     }
   }, [show_reservation_modal, selected_space]);
@@ -642,6 +520,11 @@ function App() {
       
       const data = await response.json();
       
+      // Log debug information if available
+      if (data.debug) {
+        console.log('API Debug Info:', data.debug);
+      }
+      
       if (data.success) {
         const sensors_data = data.sensors || [];
         const spaces = data.parking_spaces || [];
@@ -652,19 +535,36 @@ function App() {
           id: String(s.id)
         }));
         
+        // Debug: Log raw spaces data before normalization to see if zones are present
+        console.log('Raw spaces from API (first 2):', JSON.stringify(spaces.slice(0, 2), null, 2));
+        console.log('Raw spaces from API - checking zones:', spaces.slice(0, 2).map((s: any) => ({ 
+          id: s.id, 
+          sensor_id: s.sensor_id, 
+          has_zone: !!s.zone,
+          zone: s.zone,
+          all_keys: Object.keys(s)
+        })));
+        
         const normalized_spaces = spaces.map((space: any) => ({
           ...space,
           id: String(space.id),
-          sensor_id: String(space.sensor_id)
+          sensor_id: String(space.sensor_id),
+          // Preserve zone data if it exists
+          zone: space.zone ? {
+            ...space.zone,
+            id: String(space.zone.id || space.zone.zone_id || '')
+          } : undefined
         }));
         
         console.log('Loaded sensors:', normalized_sensors.length, normalized_sensors.map((s: any) => ({ id: s.id, name: s.name })));
-        console.log('Loaded parking spaces:', normalized_spaces.length, normalized_spaces.map((s: any) => ({ id: s.id, sensor_id: s.sensor_id })));
+        console.log('Loaded parking spaces:', normalized_spaces.length, normalized_spaces.map((s: any) => ({ id: s.id, sensor_id: s.sensor_id, has_zone: !!s.zone })));
         
-        // Debug: Log zone information for premium spaces
+        // Debug: Log zone information for all spaces
         normalized_spaces.forEach((space: any) => {
           if (space.zone) {
             console.log(`Space ${space.id} - Zone:`, space.zone, 'is_premium:', space.zone.is_premium, 'type:', typeof space.zone.is_premium);
+          } else {
+            console.log(`Space ${space.id} - NO ZONE`);
           }
         });
         
@@ -697,7 +597,7 @@ function App() {
     }
   };
 
-  const handle_license_plate_set = (plate: string) => {
+  const handle_license_plate_set = async (plate: string) => {
     // Check if this license plate already has an active session
     const existing_session = storage_service.get_active_session();
     if (existing_session && existing_session.license_plate === plate) {
@@ -711,6 +611,31 @@ function App() {
       set_active_session(null);
       set_license_plate(plate);
       storage_service.update_user_activity();
+    }
+    
+    // Check if there's a saved wallet address for auto-connection
+    const saved_wallet_address = storage_service.get_saved_wallet_for_auto_connect();
+    if (saved_wallet_address) {
+      console.log('[DEBUG] Found saved wallet address for auto-connection:', saved_wallet_address.substring(0, 10) + '...');
+      
+      // Try to auto-connect wallet
+      try {
+        // Validate and set wallet address
+        const validation_result = await ton_wallet_service.validateWalletAddress(saved_wallet_address);
+        if (validation_result.success && validation_result.valid) {
+          ton_wallet_service.setWalletAddress(saved_wallet_address);
+          set_wallet_connected(true);
+          // Clear saved wallet address since it's now connected
+          storage_service.clear_saved_wallet_for_auto_connect();
+          console.log('[DEBUG] ✅ Wallet auto-connected successfully');
+        } else {
+          console.log('[DEBUG] ⚠️ Wallet could not be auto-connected, user will need to connect manually');
+          // Don't clear saved wallet address - user might want to connect later
+        }
+      } catch (error) {
+        console.error('[DEBUG] Error during wallet auto-connection:', error);
+        // Don't fail the license plate set if auto-connection fails
+      }
     }
   };
 
@@ -750,6 +675,15 @@ function App() {
     // Check if user already has an active session
     if (active_session) {
       alert(`You already have an active session at parking space ${active_session.parking_space_id}. Please complete or cancel your current session before reserving another space.`);
+      return;
+    }
+
+    // Check if space is already reserved or occupied (client-side check)
+    if (space.status !== 'vacant') {
+      const status_text = space.status === 'reserved' ? 'reserved' : space.status === 'occupied' ? 'occupied' : space.status;
+      alert(`This parking space is already ${status_text}. Please select another space.`);
+      // Reload data to get latest status
+      await load_data(true);
       return;
     }
 
@@ -861,14 +795,33 @@ function App() {
         // Reset payment hash after successful reservation
         set_payment_tx_hash('');
         set_selected_space(null);
+        
+        // Reload data to get latest status from server
+        await load_data(true);
       } else {
-        const error_msg = response_data.error || 'Failed to reserve parking space';
+        // Handle specific error cases
+        let error_msg = response_data.error || 'Failed to reserve parking space';
+        
+        // Check if space is already reserved/occupied (HTTP 409 Conflict)
+        if (response.status === 409 || (response_data.error && (
+          response_data.error.includes('already') || 
+          response_data.error.includes('reserved') || 
+          response_data.error.includes('occupied') ||
+          response_data.error.includes('status has changed')
+        ))) {
+          error_msg = `This parking space is no longer available. It has been ${response_data.current_status || 'reserved'} by another user. Please select another space.`;
+          // Reload data to get latest status
+          await load_data(true);
+        }
+        
         alert(error_msg);
-        console.error('Failed to reserve parking space:', error_msg);
+        console.error('Failed to reserve parking space:', error_msg, 'Status:', response.status);
       }
     } catch (error) {
       console.error('Error reserving parking space:', error);
       alert('An error occurred while reserving the space. Please try again.');
+      // Reload data on error to ensure UI is in sync
+      await load_data(true);
     }
   };
 
@@ -882,6 +835,15 @@ function App() {
     // Check if user already has an active session
     if (active_session) {
       alert(`You already have an active session at parking space ${active_session.parking_space_id}. Please complete or cancel your current session before reserving another space.`);
+      return;
+    }
+
+    // Check if space is already reserved or occupied (client-side check)
+    if (space.status !== 'vacant') {
+      const status_text = space.status === 'reserved' ? 'reserved' : space.status === 'occupied' ? 'occupied' : space.status;
+      alert(`This parking space is already ${status_text}. Please select another space.`);
+      // Reload data to get latest status
+      await load_data(true);
       return;
     }
 
@@ -1016,14 +978,33 @@ function App() {
         // Reset payment hash after successful reservation
         set_payment_tx_hash('');
         set_selected_space(null);
+        
+        // Reload data to get latest status from server
+        await load_data(true);
       } else {
-        const error_msg = response_data.error || 'Failed to reserve parking space';
+        // Handle specific error cases
+        let error_msg = response_data.error || 'Failed to reserve parking space';
+        
+        // Check if space is already reserved/occupied (HTTP 409 Conflict)
+        if (response.status === 409 || (response_data.error && (
+          response_data.error.includes('already') || 
+          response_data.error.includes('reserved') || 
+          response_data.error.includes('occupied') ||
+          response_data.error.includes('status has changed')
+        ))) {
+          error_msg = `This parking space is no longer available. It has been ${response_data.current_status || 'reserved'} by another user. Please select another space.`;
+          // Reload data to get latest status
+          await load_data(true);
+        }
+        
         alert(error_msg);
-        console.error('Failed to reserve parking space:', error_msg);
+        console.error('Failed to reserve parking space:', error_msg, 'Status:', response.status);
       }
     } catch (error) {
       console.error('Error reserving parking space:', error);
       alert('An error occurred while reserving the space. Please try again.');
+      // Reload data on error to ensure UI is in sync
+      await load_data(true);
     }
   };
 
@@ -1044,65 +1025,220 @@ function App() {
       return;
     }
 
+    // Check if user already has an active session
+    if (active_session) {
+      alert(`You already have an active session at parking space ${active_session.parking_space_id}. Please complete or cancel your current session before reserving another space.`);
+      return;
+    }
+
     set_payment_processing(true);
+    let stop_monitoring: (() => void) | undefined;
+    let reservation_created = false;
+
     try {
-      // Step 1: Process payment (this will check balance first, then send transaction)
-      // The processPayment method now checks balance before attempting payment
-      console.log('[DEBUG] handle_ton_payment - starting payment process');
-      const payment_result = await ton_payment_service.processPayment(space, space.zone, reservation_duration_hours);
+      const amount_nano = ton_payment_service.calculatePriceInTon(space, space.zone, reservation_duration_hours);
+      const amount_ton = parseFloat(amount_nano) / Math.pow(10, 9);
+
+      // Callback for transaction status updates
+      const onTransactionStatus = async (status: TransactionStatus) => {
+        set_payment_tx_status(status.status === 'confirmed' ? 'confirmed' : status.status === 'failed' ? 'failed' : 'pending');
+        
+        if (status.status === 'confirmed' && !reservation_created) {
+          reservation_created = true;
+          
+          if (stop_monitoring) {
+            stop_monitoring();
+          }
+
+          // Verify payment with backend
+          try {
+            const verify_response = await fetch(build_api_url('/api/verify-ton-payment.php'), create_api_options('POST', {
+              space_id: space.id,
+              tx_hash: status.tx_hash || payment_tx_hash || '',
+              license_plate: license_plate,
+              amount_nano: amount_nano
+            }));
+
+            const verify_data = await verify_response.json();
+            
+            if (!verify_response.ok || !verify_data.success) {
+              alert(`Transaction confirmed but verification failed: ${verify_data.error || 'Unknown error'}\n\nPlease try to confirm reservation manually.`);
+              set_payment_processing(false);
+              return;
+            }
+
+            // Payment verified - automatically create reservation
+            await create_reservation_after_payment(space, status.tx_hash || payment_tx_hash || '');
+            
+          } catch (verify_error) {
+            console.error('Payment verification error:', verify_error);
+            // Show alert only for backend verification errors (not TON Connect UI errors)
+            alert('Transaction confirmed but verification failed. Please try to confirm reservation manually.');
+            set_payment_processing(false);
+          }
+        } else if (status.status === 'failed') {
+          // TON Connect UI will show its own error message for transaction failures
+          // Only show alert if it's a backend/system error, not user rejection
+          if (status.error && !status.error.includes('reject') && !status.error.includes('User rejects')) {
+            alert(`Transaction failed: ${status.error || 'Unknown error'}`);
+          }
+          set_payment_processing(false);
+          if (stop_monitoring) {
+            stop_monitoring();
+          }
+        }
+      };
+
+      const payment_result = await ton_payment_service.processPayment(
+        space, 
+        space.zone, 
+        reservation_duration_hours,
+        onTransactionStatus
+      );
       
       if (!payment_result.success || !payment_result.tx_hash) {
-        alert(`Payment failed: ${payment_result.error || 'Unknown error'}`);
+        // TON Connect UI will show its own error message - no need for duplicate alert
+        // Only log the error for debugging
+        if (payment_result.error) {
+          console.error('Payment failed:', payment_result.error);
+        }
         set_payment_processing(false);
         return;
       }
 
-      // Step 2: Payment successful - store transaction hash (BOC)
+      // Payment sent - store transaction hash and start monitoring
       const tx_hash = payment_result.tx_hash;
       set_payment_tx_hash(tx_hash);
-      set_wallet_connected(true);
-      console.log('[DEBUG] handle_ton_payment - Payment transaction hash (BOC) stored:', tx_hash.substring(0, 50) + '...');
-
-      // Step 3: Verify payment with backend (verify BOC transaction on blockchain)
-      try {
-        const amount_nano = ton_payment_service.calculatePriceInTon(space, space.zone, reservation_duration_hours);
-        console.log('[DEBUG] handle_ton_payment - Verifying payment with backend...');
-        
-        const verify_response = await fetch(build_api_url('/api/verify-ton-payment.php'), create_api_options('POST', {
-          space_id: space.id,
-          tx_hash: tx_hash,
-          license_plate: license_plate,
-          amount_nano: amount_nano
-        }));
-
-        const verify_data = await verify_response.json();
-        
-        if (!verify_data.success) {
-          // Payment verification failed - but don't block, let user try to confirm reservation
-          // The verification will be done again when confirming reservation
-          console.warn('[DEBUG] handle_ton_payment - Initial payment verification failed:', verify_data.error);
-          alert(`Payment sent but verification pending. You can now click "Confirm Reservation" to complete the reservation.`);
-        } else {
-          console.log('[DEBUG] handle_ton_payment - Payment verified successfully, ready for reservation confirmation');
-          alert(`✅ Payment successful! Click "Confirm Reservation" to complete your booking.`);
-        }
-      } catch (verify_error) {
-        console.error('[DEBUG] handle_ton_payment - Payment verification error:', verify_error);
-        alert(`Payment sent. You can now click "Confirm Reservation" to complete your booking.`);
-      }
+      set_payment_tx_status('pending');
+      stop_monitoring = payment_result.monitorTransaction;
       
-      // Payment is processed and tx_hash is saved
-      // User can now click "Confirm Reservation" button to complete the reservation
-      set_payment_processing(false);
+      // TON Connect UI will show success message, no need for additional alert
+      
     } catch (error) {
-      console.error('[DEBUG] handle_ton_payment - Payment error:', error);
-      alert('An error occurred during payment. Please try again.');
-    } finally {
+      console.error('Payment error:', error);
+      // Only show alert for unexpected errors, not TON Connect UI errors
+      const error_message = error instanceof Error ? error.message : 'An error occurred during payment';
+      if (!error_message.includes('TON_CONNECT') && !error_message.includes('reject')) {
+        alert(`Payment error: ${error_message}`);
+      }
+      set_payment_processing(false);
+      if (stop_monitoring) {
+        stop_monitoring();
+      }
+    }
+  };
+
+  // Helper function to create reservation after payment is verified
+  const create_reservation_after_payment = async (space: ParkingSpace, tx_hash: string) => {
+    try {
+      const current_time = new Date().toISOString();
+      
+      // Update parking space status via API
+      const request_body: any = {
+        status: 'reserved',
+        license_plate: license_plate,
+        reservation_time: current_time,
+        duration_hours: reservation_duration_hours,
+        payment_tx_hash: tx_hash
+      };
+
+      const response = await fetch(build_api_url(`/api/parking-spaces.php/${space.id}`), create_api_options('PUT', request_body));
+      
+      const response_data = await response.json();
+      
+      if (response.ok && response_data.success) {
+        // Create new active session
+        const new_session: ActiveSession = {
+          id: `session_${Date.now()}`,
+          license_plate: license_plate!,
+          parking_space_id: space.id,
+          start_time: current_time,
+          status: 'reserved',
+          reservation_time: current_time
+        };
+
+        // Calculate end_time based on duration
+        const end_time = new Date(current_time);
+        end_time.setHours(end_time.getHours() + reservation_duration_hours);
+        const end_time_iso = end_time.toISOString();
+
+        // Update local state
+        const updated_spaces = parking_spaces.map(s => 
+          s.id === space.id 
+            ? { 
+                ...s, 
+                status: 'reserved' as const, 
+                license_plate: license_plate || undefined, 
+                reservation_time: current_time,
+                reservation_end_time: end_time_iso
+              }
+            : s
+        );
+        set_parking_spaces(updated_spaces);
+        
+        // Set active session
+        set_active_session(new_session);
+        storage_service.set_active_session(new_session);
+        
+        // Clear payment state
+        set_payment_tx_hash(null);
+        set_payment_tx_status(null);
+        set_payment_processing(false);
+        
+        console.log('Parking space reserved successfully after payment confirmation');
+        set_show_reservation_modal(false);
+        
+        // Show success message
+        const sensor = sensors.find(s => s.id === space.sensor_id);
+        const location_name = sensor?.street_name || 'Parking Space';
+        
+        const nav_choice = window.confirm(
+          `✅ Reservation created successfully!\n\n` +
+          `Location: ${location_name}\n` +
+          `Transaction confirmed on blockchain.\n\n` +
+          `Would you like to open navigation?\n\n` +
+          `Click OK for Google Maps\n` +
+          `Click Cancel to skip`
+        );
+        
+        if (nav_choice && sensor?.coordinates) {
+          // Open Google Maps navigation
+          const google_maps_url = `https://www.google.com/maps/dir/?api=1&destination=${sensor.coordinates.lat},${sensor.coordinates.lng}&travelmode=driving`;
+          window.open(google_maps_url, '_blank');
+          
+          // Also try to open Waze if available (mobile)
+          const waze_url = `https://waze.com/ul?ll=${sensor.coordinates.lat},${sensor.coordinates.lng}&navigate=yes`;
+          setTimeout(() => {
+            window.open(waze_url, '_blank');
+          }, 500);
+        }
+        
+        set_selected_space(null);
+      } else {
+        const error_msg = response_data.error || 'Failed to reserve parking space';
+        alert(`Reservation failed: ${error_msg}`);
+        console.error('Failed to reserve parking space:', error_msg);
+        set_payment_processing(false);
+      }
+    } catch (error) {
+      console.error('Error creating reservation after payment:', error);
+      alert('An error occurred while creating the reservation. Please try again or contact support.');
       set_payment_processing(false);
     }
   };
 
   const handle_complete_session = async (space: ParkingSpace) => {
+    if (!license_plate) {
+      alert('You must be logged in to complete a session.');
+      return;
+    }
+    
+    // Verify that this is the user's reservation
+    if (space.license_plate !== license_plate) {
+      alert('You can only complete sessions for your own license plate.');
+      return;
+    }
+    
     try {
       // Update parking space status via API
       const response = await fetch(build_api_url(`/api/parking-spaces.php/${space.id}`), {
@@ -1112,7 +1248,7 @@ function App() {
         },
         body: JSON.stringify({
           status: 'vacant',
-          license_plate: null,
+          license_plate: license_plate, // Send license_plate for verification
           reservation_time: null,
           occupied_since: null
         })
@@ -1143,9 +1279,9 @@ function App() {
   };
 
   const handle_navigate = (coordinates: { lat: number; lng: number }) => {
-    const user_location = MAPS_CONFIG.USER_LOCATION;
+    const current_user_location = user_location || MAPS_CONFIG.USER_LOCATION;
     // Use the Google Maps API key from environment variables
-    const url = `${GOOGLE_MAPS_URLS.DIRECTIONS}?api=1&destination=${coordinates.lat},${coordinates.lng}&travelmode=driving&origin=${user_location.lat},${user_location.lng}&key=${get_maps_api_key()}`;
+    const url = `${GOOGLE_MAPS_URLS.DIRECTIONS}?api=1&destination=${coordinates.lat},${coordinates.lng}&travelmode=driving&origin=${current_user_location.lat},${current_user_location.lng}&key=${get_maps_api_key()}`;
     window.open(url, '_blank');
   };
 
@@ -1249,8 +1385,7 @@ function App() {
   }
 
   return (
-    <TonConnectUIProvider manifestUrl={`${window.location.origin}/tonconnect-manifest.json`}>
-      <Router>
+    <Router>
         <div className="app">
         <div className="header-container">
           <Header
@@ -1344,6 +1479,8 @@ function App() {
                 license_plate={license_plate}
                 on_reserve_space={handle_reserve_space}
                 on_close_reservation_modal={() => set_show_reservation_modal(false)}
+                user_location={user_location || MAPS_CONFIG.USER_LOCATION}
+                on_request_location={request_user_location}
               />
             </div>
           )}
@@ -1394,6 +1531,7 @@ function App() {
                       on_navigate={handle_navigate}
                       on_complete_session={handle_complete_session}
                       active_session={active_session}
+                      license_plate={license_plate}
                     />
                   );
                 })}
@@ -1527,12 +1665,12 @@ function App() {
                         onClick={() => set_reservation_duration_hours(hours)}
                         style={{
                           padding: '0.75rem 1.25rem',
-                          border: reservation_duration_hours === hours ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                          border: reservation_duration_hours === hours ? '2px solid #6b7280' : '1px solid #e5e7eb',
                           borderRadius: '8px',
                           fontSize: '0.9rem',
                           fontWeight: reservation_duration_hours === hours ? '600' : '500',
                           cursor: 'pointer',
-                          background: reservation_duration_hours === hours ? '#3b82f6' : 'white',
+                          background: reservation_duration_hours === hours ? '#6b7280' : 'white',
                           color: reservation_duration_hours === hours ? 'white' : '#1f2937',
                           transition: 'all 0.2s ease',
                           minWidth: '60px'
@@ -1595,14 +1733,9 @@ function App() {
                           await check_wallet_connection();
                           // Wait a bit for state to update
                           await new Promise(resolve => setTimeout(resolve, 100));
-                          // Check again after state update
-                          const tonConnectUI = ton_payment_service.getTonConnectUI();
-                          if (tonConnectUI && tonConnectUI.wallet) {
-                            // Wallet is connected, update state immediately
-                            set_wallet_connected(true);
-                            console.log('Wallet found connected, updating state');
-                          } else {
-                            // If still not connected, open modal
+                          // Check wallet connection
+                          check_wallet_connection();
+                          if (!wallet_connected) {
                             set_show_wallet_sheet(true);
                           }
                         }}
@@ -1613,14 +1746,14 @@ function App() {
                           fontSize: '0.9rem',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          background: '#3b82f6',
+                          background: '#6b7280',
                           color: 'white',
                           width: '100%',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '0.5rem',
-                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+                          boxShadow: '0 4px 12px rgba(107, 114, 128, 0.3)'
                         }}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1697,7 +1830,7 @@ function App() {
                         fontSize: '0.9rem',
                         fontWeight: '600',
                         cursor: payment_processing ? 'not-allowed' : 'pointer',
-                        background: payment_processing ? '#9ca3af' : '#3b82f6',
+                        background: payment_processing ? '#9ca3af' : '#6b7280',
                         color: 'white',
                         width: '100%',
                         marginBottom: '1rem'
@@ -1709,14 +1842,68 @@ function App() {
 
                   {payment_tx_hash && (
                     <div style={{
-                      padding: '0.75rem',
-                      backgroundColor: '#d1fae5',
-                      borderRadius: '6px',
+                      padding: '1rem',
+                      backgroundColor: payment_tx_status === 'confirmed' ? '#d1fae5' : payment_tx_status === 'failed' ? '#fee2e2' : '#fef3c7',
+                      borderRadius: '8px',
                       marginBottom: '1rem',
-                      fontSize: '0.85rem',
-                      color: '#065f46'
+                      border: `1px solid ${payment_tx_status === 'confirmed' ? '#10b981' : payment_tx_status === 'failed' ? '#ef4444' : '#f59e0b'}`
                     }}>
-                      Payment successful! Transaction: {payment_tx_hash.substring(0, 20)}...
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        marginBottom: '0.5rem'
+                      }}>
+                        {payment_tx_status === 'confirmed' ? (
+                          <span style={{ fontSize: '1.2rem' }}>✅</span>
+                        ) : payment_tx_status === 'failed' ? (
+                          <span style={{ fontSize: '1.2rem' }}>❌</span>
+                        ) : (
+                          <span style={{ fontSize: '1.2rem' }}>⏳</span>
+                        )}
+                        <strong style={{
+                          fontSize: '0.9rem',
+                          color: payment_tx_status === 'confirmed' ? '#065f46' : payment_tx_status === 'failed' ? '#991b1b' : '#92400e'
+                        }}>
+                          {payment_tx_status === 'confirmed' ? 'Transaction Confirmed' : payment_tx_status === 'failed' ? 'Transaction Failed' : 'Transaction Pending'}
+                        </strong>
+                      </div>
+                      <div style={{
+                        fontSize: '0.8rem',
+                        color: payment_tx_status === 'confirmed' ? '#047857' : payment_tx_status === 'failed' ? '#dc2626' : '#d97706',
+                        marginBottom: '0.75rem',
+                        wordBreak: 'break-all'
+                      }}>
+                        Hash: {payment_tx_hash.substring(0, 30)}...
+                      </div>
+                      <a
+                        href={ton_payment_service.getTonApiService().getTransactionExplorerUrl(payment_tx_hash, 'tonviewer')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: payment_tx_status === 'confirmed' ? '#10b981' : payment_tx_status === 'failed' ? '#ef4444' : '#f59e0b',
+                          color: 'white',
+                          borderRadius: '6px',
+                          textDecoration: 'none',
+                          fontSize: '0.85rem',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'opacity 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                          <polyline points="15 3 21 3 21 9" />
+                          <line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                        View on TONScan
+                      </a>
                     </div>
                   )}
                 </div>
@@ -1770,8 +1957,8 @@ function App() {
           </BottomSheet>
         )}
 
-        {/* Wallet Management Bottom Sheet */}
-        <WalletBottomSheet
+        {/* Wallet Management Connect Sheet */}
+        <WalletConnectSheet
           is_open={show_wallet_sheet}
           on_close={() => {
             set_show_wallet_sheet(false);
@@ -1782,26 +1969,18 @@ function App() {
           }}
           wallet_connected={wallet_connected}
           on_wallet_connected={(wallet_address?: string) => {
-            // If wallet_address is provided, wallet is connected - set state directly
-            // DON'T call check_wallet_connection here because it will reset the state to false
-            // since it can't find the instance (fallback instance is in WalletBottomSheet)
             if (wallet_address) {
-              console.log('[DEBUG] WalletBottomSheet callback - wallet connected:', wallet_address.substring(0, 10) + '...');
               set_wallet_connected(true);
-              // DON'T call check_wallet_connection - it will reset state to false
             } else {
-              // No address = wallet disconnected
-              console.log('[DEBUG] WalletBottomSheet callback - wallet disconnected');
               set_wallet_connected(false);
               set_payment_tx_hash(null);
+              set_payment_tx_status(null);
             }
           }}
         />
 
-
         </div>
       </Router>
-    </TonConnectUIProvider>
   );
 }
 

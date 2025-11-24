@@ -36,6 +36,43 @@ export const AdminDashboard: React.FC = () => {
 
   // Zone state
   const [zones, set_zones] = useState<ParkingZone[]>([]);
+  const [zones_loading, set_zones_loading] = useState(false);
+  
+  // Real Sensors state
+  const [real_sensors_logs, set_real_sensors_logs] = useState<any[]>([]);
+  const [real_sensors_stats, set_real_sensors_stats] = useState<any>(null);
+  const [real_sensors_server_status, set_real_sensors_server_status] = useState<string>('unknown');
+  const [real_sensors_loading, set_real_sensors_loading] = useState(false);
+  const [real_sensors_filters, set_real_sensors_filters] = useState({
+    wpsd_id: '',
+    action: '',
+    date_from: '',
+    date_to: '',
+    limit: 100,
+    offset: 0
+  });
+  const FIREWALL_PAGE_SIZE = 6;
+  const [firewall_whitelist, set_firewall_whitelist] = useState<{ ip: string; label?: string }[]>([]);
+  const [firewall_loading, set_firewall_loading] = useState(false);
+  const [firewall_saving, set_firewall_saving] = useState(false);
+  const [firewall_error, set_firewall_error] = useState<string | null>(null);
+  const [firewall_success, set_firewall_success] = useState<string | null>(null);
+  const [firewall_new_ip, set_firewall_new_ip] = useState('');
+  const [firewall_new_label, set_firewall_new_label] = useState('');
+  const [firewall_show_list, set_firewall_show_list] = useState(false);
+  const [firewall_page, set_firewall_page] = useState(1);
+  const [space_status_loading, set_space_status_loading] = useState<string | null>(null);
+  const [space_status_feedback, set_space_status_feedback] = useState<string | null>(null);
+
+  const total_firewall_pages = Math.max(1, Math.ceil(Math.max(firewall_whitelist.length, 1) / FIREWALL_PAGE_SIZE));
+  const safe_firewall_page = Math.min(firewall_page, total_firewall_pages);
+  const firewall_page_start = (safe_firewall_page - 1) * FIREWALL_PAGE_SIZE;
+  const displayed_firewall_whitelist = firewall_whitelist.slice(firewall_page_start, firewall_page_start + FIREWALL_PAGE_SIZE);
+  
+  // Loading flags to prevent duplicate requests
+  const [data_loading, set_data_loading] = useState(false);
+  const [usage_loading, set_usage_loading] = useState(false);
+  const [statistics_loading, set_statistics_loading] = useState(false);
 
   // Sensor management state
   const [editing_sensor, set_editing_sensor] = useState<Sensor | null>(null);
@@ -90,13 +127,6 @@ export const AdminDashboard: React.FC = () => {
     check_authentication_and_load_data();
   }, []);
 
-  // Ensure zones are loaded when component mounts
-  useEffect(() => {
-    if (is_authenticated && zones.length === 0) {
-      load_zones();
-    }
-  }, [is_authenticated]);
-
   const check_authentication_and_load_data = async () => {
     try {
       set_is_loading(true);
@@ -133,7 +163,14 @@ export const AdminDashboard: React.FC = () => {
   }, [parking_spaces, usage_data, reservations]);
 
   const load_data = async () => {
+    // Prevent duplicate requests
+    if (data_loading) {
+      return;
+    }
+    
     try {
+      set_data_loading(true);
+      
       // Load data from PHP backend
       const response = await fetch(build_api_url('/api/data.php'));
       if (response.ok) {
@@ -165,8 +202,13 @@ export const AdminDashboard: React.FC = () => {
       
       // Load zones data for all admin users (needed for sensor forms)
       await load_zones();
+      
+      // Generate statistics after loading all data
+      await generate_statistics();
     } catch (error) {
       console.error('Error loading data:', error);
+    } finally {
+      set_data_loading(false);
     }
   };
 
@@ -175,8 +217,189 @@ export const AdminDashboard: React.FC = () => {
     generate_statistics();
   };
 
-  const load_parking_usage = async () => {
+  const load_real_sensors_data = async () => {
+    if (real_sensors_loading || current_user?.role !== 'superadmin') {
+      return;
+    }
+
     try {
+      set_real_sensors_loading(true);
+      
+      const params = new URLSearchParams();
+      if (real_sensors_filters.wpsd_id) params.append('wpsd_id', real_sensors_filters.wpsd_id);
+      if (real_sensors_filters.action) params.append('action', real_sensors_filters.action);
+      if (real_sensors_filters.date_from) params.append('date_from', real_sensors_filters.date_from);
+      if (real_sensors_filters.date_to) params.append('date_to', real_sensors_filters.date_to);
+      params.append('limit', real_sensors_filters.limit.toString());
+      params.append('offset', real_sensors_filters.offset.toString());
+
+      const response = await fetch(build_api_url(`/api/real-sensors.php?${params.toString()}`), {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          set_real_sensors_logs(data.data.logs || []);
+          set_real_sensors_stats(data.data.statistics || null);
+          set_real_sensors_server_status(data.data.server_status || 'unknown');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading real sensors data:', error);
+    } finally {
+      set_real_sensors_loading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (current_user?.role === 'superadmin' && active_tab === 'real_sensors') {
+      load_firewall_whitelist();
+    }
+  }, [active_tab, current_user]);
+
+  useEffect(() => {
+    if (space_status_feedback) {
+      const timeout = setTimeout(() => set_space_status_feedback(null), 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [space_status_feedback]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(Math.max(firewall_whitelist.length, 1) / FIREWALL_PAGE_SIZE));
+    if (firewall_page > maxPage) {
+      set_firewall_page(maxPage);
+    }
+  }, [firewall_whitelist.length, firewall_page]);
+
+  const load_firewall_whitelist = async () => {
+    if (firewall_loading || current_user?.role !== 'superadmin') {
+      return;
+    }
+    try {
+      set_firewall_loading(true);
+      set_firewall_error(null);
+      const response = await fetch(build_api_url('/api/firewall-whitelist.php'), {
+        method: 'GET',
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        set_firewall_whitelist(data.data?.ips || []);
+      } else {
+        set_firewall_error(data.error || 'Failed to load whitelist.');
+      }
+    } catch (error) {
+      console.error('Error loading firewall whitelist:', error);
+      set_firewall_error('Failed to load whitelist.');
+    } finally {
+      set_firewall_loading(false);
+    }
+  };
+
+  const save_firewall_whitelist = async () => {
+    if (firewall_saving || current_user?.role !== 'superadmin') {
+      return;
+    }
+    try {
+      set_firewall_saving(true);
+      set_firewall_error(null);
+      set_firewall_success(null);
+      const response = await fetch(build_api_url('/api/firewall-whitelist.php'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ ips: firewall_whitelist })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        set_firewall_success('Whitelist saved successfully.');
+        set_firewall_whitelist(data.data?.ips || []);
+      } else {
+        set_firewall_error(data.error || 'Failed to save whitelist.');
+      }
+    } catch (error) {
+      console.error('Error saving firewall whitelist:', error);
+      set_firewall_error('Failed to save whitelist.');
+    } finally {
+      set_firewall_saving(false);
+    }
+  };
+
+  const add_firewall_entry = () => {
+    const trimmed_ip = firewall_new_ip.trim();
+    if (!trimmed_ip) {
+      set_firewall_error('IP address cannot be empty.');
+      return;
+    }
+
+    const ipv4_regex = /^([0-9]{1,3}\.){3}[0-9]{1,3}$/;
+    const ipv6_regex = /^[0-9a-fA-F:]+$/;
+    if (!ipv4_regex.test(trimmed_ip) && !ipv6_regex.test(trimmed_ip)) {
+      set_firewall_error('Invalid IP address format.');
+      return;
+    }
+
+    set_firewall_whitelist(prev => [...prev, { ip: trimmed_ip, label: firewall_new_label.trim() }]);
+    set_firewall_new_ip('');
+    set_firewall_new_label('');
+    set_firewall_error(null);
+  };
+
+  const remove_firewall_entry = (index: number) => {
+    set_firewall_whitelist(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const update_firewall_entry = (index: number, field: 'ip' | 'label', value: string) => {
+    set_firewall_whitelist(prev => prev.map((entry, idx) => {
+      if (idx !== index) return entry;
+      return {
+        ...entry,
+        [field]: value
+      };
+    }));
+  };
+
+  const update_space_status = async (space_id: string, status: 'vacant' | 'occupied') => {
+    if (space_status_loading || current_user?.role !== 'superadmin') {
+      return;
+    }
+    try {
+      set_space_status_loading(space_id);
+      set_space_status_feedback(null);
+      const response = await fetch(build_api_url('/api/admin-space-status.php'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ space_id, status })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        set_space_status_feedback(`Space #${space_id} set to ${status}.`);
+        await load_data();
+      } else {
+        alert(data.error || 'Failed to update parking space status.');
+      }
+    } catch (error) {
+      console.error('Error updating space status:', error);
+      alert('Failed to update parking space status.');
+    } finally {
+      set_space_status_loading(null);
+    }
+  };
+
+  const load_parking_usage = async () => {
+    // Prevent duplicate requests
+    if (usage_loading) {
+      return;
+    }
+    
+    try {
+      set_usage_loading(true);
       const response = await fetch(build_api_url('/api/statistics.php?action=parking_usage&limit=100'));
       if (response.ok) {
         const data = await response.json();
@@ -186,11 +409,19 @@ export const AdminDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading parking usage:', error);
+    } finally {
+      set_usage_loading(false);
     }
   };
 
   const load_zones = async () => {
+    // Prevent duplicate requests
+    if (zones_loading) {
+      return;
+    }
+    
     try {
+      set_zones_loading(true);
       console.log('Loading zones...');
       const result = await admin_service.getParkingZones();
       console.log('Zones result:', result);
@@ -200,7 +431,7 @@ export const AdminDashboard: React.FC = () => {
           id: String(zone.id), // Convert to string to match interface
           name: zone.name || 'Unknown Zone',
           description: zone.description || '',
-          color: zone.color || '#3B82F6',
+          color: zone.color || '#6b7280',
           hourly_rate: Number(zone.hourly_rate) || 0,
           daily_rate: Number(zone.daily_rate) || 0,
           is_active: Boolean(zone.is_active),
@@ -218,11 +449,20 @@ export const AdminDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading zones:', error);
       set_zones([]); // Set empty array on error
+    } finally {
+      set_zones_loading(false);
     }
   };
 
   const generate_statistics = async () => {
+    // Prevent duplicate requests
+    if (statistics_loading) {
+      return;
+    }
+    
     try {
+      set_statistics_loading(true);
+      
       // Fetch real statistics from backend
       const response = await fetch(build_api_url('/api/statistics.php?action=overview'));
       if (response.ok) {
@@ -239,6 +479,8 @@ export const AdminDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching statistics:', error);
+    } finally {
+      set_statistics_loading(false);
     }
 
     // Fallback to local calculation if API fails
@@ -1072,6 +1314,42 @@ export const AdminDashboard: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* Real Sensors Tab - Superadmin only */}
+        {current_user?.role === 'superadmin' && (
+          <button
+            className={`tab ${active_tab === 'real_sensors' ? 'active' : ''}`}
+            onClick={() => {
+              set_active_tab('real_sensors');
+              setTimeout(() => {
+                load_real_sensors_data();
+                load_firewall_whitelist();
+              }, 100);
+            }}
+            style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: is_small_mobile ? '0.75rem' : is_mobile ? '0.875rem' : '0.9375rem',
+              fontWeight: '500',
+              backgroundColor: active_tab === 'real_sensors' ? '#4b5563' : '#e5e7eb',
+              color: active_tab === 'real_sensors' ? 'white' : '#374151',
+              transition: 'all 0.2s ease',
+              boxShadow: active_tab === 'real_sensors' ? '0 2px 8px rgba(75, 85, 99, 0.3)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
+              whiteSpace: 'nowrap',
+              minHeight: '44px',
+              flex: '1 1 0',
+              minWidth: '0'
+            }}
+          >
+            <Radio size={18} />
+            <span>Real Sensors</span>
+          </button>
+        )}
       </div>
 
       <div className="dashboard-content" style={{
@@ -1083,7 +1361,10 @@ export const AdminDashboard: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            alignItems: 'center'
+            alignItems: 'stretch',
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box'
           }}>
             {/* Reservations Summary */}
             <div className="reservations-summary" style={{
@@ -1153,7 +1434,9 @@ export const AdminDashboard: React.FC = () => {
             <div className="data-summary" style={{
               width: '100%',
               maxWidth: '100%',
-              padding: '0 0.5rem'
+              padding: is_small_mobile ? '0' : '0 0.5rem',
+              boxSizing: 'border-box',
+              marginBottom: is_small_mobile ? '1.5rem' : '2rem'
             }}>
               <h3 style={{
                 fontSize: is_small_mobile ? '1rem' : is_mobile ? '1.25rem' : '1.5rem',
@@ -1165,10 +1448,12 @@ export const AdminDashboard: React.FC = () => {
               }}>{language_service.t('data_summary')}</h3>
               <div className="summary-grid" style={{
                 display: 'grid',
-                gridTemplateColumns: is_small_mobile ? 'repeat(2, 1fr)' : is_mobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
-                gap: is_small_mobile ? '0.5rem' : is_mobile ? '0.75rem' : '1rem',
-                padding: '0 0.25rem',
-                width: '100%'
+                gridTemplateColumns: is_small_mobile ? '1fr' : is_mobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+                gap: is_small_mobile ? '0.75rem' : is_mobile ? '0.75rem' : '1rem',
+                padding: is_small_mobile ? '0' : '0 0.25rem',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box'
               }}>
                 <div className="summary-item" style={{
                   backgroundColor: is_night_mode ? '#374151' : '#f9fafb',
@@ -1330,119 +1615,154 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {statistics && (
-              <div className="stats-grid" style={{
+              <div style={{
                 width: '100%',
                 maxWidth: '100%',
-                padding: '0 0.5rem'
+                padding: is_small_mobile ? '0 0.25rem' : is_mobile ? '0 0.5rem' : '0 0.5rem',
+                boxSizing: 'border-box',
+                marginTop: is_small_mobile ? '1.5rem' : is_mobile ? '1.5rem' : '2rem'
               }}>
                 <h3 style={{
                   fontSize: is_small_mobile ? '1rem' : is_mobile ? '1.25rem' : '1.5rem',
                   fontWeight: '600',
                   color: is_night_mode ? '#ffffff' : '#1f2937',
                   textAlign: 'center',
-                  marginBottom: '0.75rem',
+                  marginBottom: is_small_mobile ? '1rem' : '0.75rem',
                   transition: 'all 0.3s ease'
                 }}>Key Statistics</h3>
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(2, 1fr)',
                   gap: is_small_mobile ? '0.5rem' : is_mobile ? '0.75rem' : '1rem',
-                  width: '100%'
-                }}>
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  gridAutoRows: 'minmax(90px, auto)',
+                  margin: '0',
+                  padding: '0'
+                } as React.CSSProperties}>
                   <div className="stat-card" style={{
                     backgroundColor: is_night_mode ? '#374151' : '#f9fafb',
-                    padding: is_small_mobile ? '1rem' : is_mobile ? '1.25rem' : '1.5rem',
+                    padding: is_small_mobile ? '0.75rem' : is_mobile ? '1rem' : '1.5rem',
                     borderRadius: '12px',
                     boxShadow: is_night_mode ? '0 4px 6px rgba(0, 0, 0, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                     border: `1px solid ${is_night_mode ? '#4b5563' : '#e5e7eb'}`,
                     textAlign: 'center',
                     transition: 'all 0.3s ease',
-                    width: '100%'
+                    width: '100%',
+                    minHeight: is_small_mobile ? '90px' : is_mobile ? '100px' : '120px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
                   }}>
                     <h3 style={{
-                      fontSize: is_small_mobile ? '0.7rem' : is_mobile ? '0.75rem' : '0.875rem', 
+                      fontSize: is_small_mobile ? '0.65rem' : is_mobile ? '0.7rem' : '0.875rem', 
                       color: is_night_mode ? '#9ca3af' : '#6b7280', 
                       marginBottom: '0.5rem', 
                       textTransform: 'uppercase', 
-                      letterSpacing: '0.05em'
+                      letterSpacing: '0.05em',
+                      lineHeight: '1.2'
                     }}>UKUPNO MESTA</h3>
                     <p style={{
                       fontSize: is_small_mobile ? '1.25rem' : is_mobile ? '1.5rem' : 'clamp(1.5rem, 4vw, 2rem)', 
                       fontWeight: '700', 
                       color: is_night_mode ? '#d1d5db' : '#4b5563', 
-                      margin: '0'
+                      margin: '0',
+                      lineHeight: '1.2'
                     }}>{statistics.total_spaces}</p>
                   </div>
                   <div className="stat-card" style={{
                     backgroundColor: is_night_mode ? '#4b5563' : '#f3f4f6',
-                    padding: is_small_mobile ? '1rem' : is_mobile ? '1.25rem' : '1.5rem',
+                    padding: is_small_mobile ? '0.75rem' : is_mobile ? '1rem' : '1.5rem',
                     borderRadius: '12px',
                     boxShadow: is_night_mode ? '0 4px 6px rgba(0, 0, 0, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                     border: `1px solid ${is_night_mode ? '#6b7280' : '#d1d5db'}`,
                     textAlign: 'center',
                     transition: 'all 0.3s ease',
-                    width: '100%'
+                    width: '100%',
+                    minHeight: is_small_mobile ? '90px' : is_mobile ? '100px' : '120px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
                   }}>
                     <h3 style={{
-                      fontSize: is_small_mobile ? '0.7rem' : is_mobile ? '0.75rem' : '0.875rem', 
+                      fontSize: is_small_mobile ? '0.65rem' : is_mobile ? '0.7rem' : '0.875rem', 
                       color: is_night_mode ? '#9ca3af' : '#6b7280', 
                       marginBottom: '0.5rem', 
                       textTransform: 'uppercase', 
-                      letterSpacing: '0.05em'
+                      letterSpacing: '0.05em',
+                      lineHeight: '1.2'
                     }}>STOPA ISKORIŠĆENOSTI</h3>
                     <p style={{
                       fontSize: is_small_mobile ? '1.25rem' : is_mobile ? '1.5rem' : '2rem', 
                       fontWeight: '700', 
                       color: is_night_mode ? '#e5e7eb' : '#374151', 
-                      margin: '0'
+                      margin: '0',
+                      lineHeight: '1.2'
                     }}>{statistics.utilization_rate.toFixed(1)}%</p>
                   </div>
                   <div className="stat-card" style={{
                     backgroundColor: is_night_mode ? '#374151' : '#f9fafb',
-                    padding: is_small_mobile ? '1rem' : is_mobile ? '1.25rem' : '1.5rem',
+                    padding: is_small_mobile ? '0.75rem' : is_mobile ? '1rem' : '1.5rem',
                     borderRadius: '12px',
                     boxShadow: is_night_mode ? '0 4px 6px rgba(0, 0, 0, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                     border: `1px solid ${is_night_mode ? '#4b5563' : '#e5e7eb'}`,
                     textAlign: 'center',
                     transition: 'all 0.3s ease',
-                    width: '100%'
+                    width: '100%',
+                    minHeight: is_small_mobile ? '90px' : is_mobile ? '100px' : '120px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
                   }}>
                     <h3 style={{
-                      fontSize: is_small_mobile ? '0.7rem' : is_mobile ? '0.75rem' : '0.875rem', 
+                      fontSize: is_small_mobile ? '0.65rem' : is_mobile ? '0.7rem' : '0.875rem', 
                       color: is_night_mode ? '#9ca3af' : '#6b7280', 
                       marginBottom: '0.5rem', 
                       textTransform: 'uppercase', 
-                      letterSpacing: '0.05em'
+                      letterSpacing: '0.05em',
+                      lineHeight: '1.2'
                     }}>UKUPAN PRIHOD</h3>
                     <p style={{
                       fontSize: is_small_mobile ? '1.25rem' : is_mobile ? '1.5rem' : '2rem', 
                       fontWeight: '700', 
                       color: is_night_mode ? '#d1d5db' : '#4b5563', 
-                      margin: '0'
+                      margin: '0',
+                      lineHeight: '1.2'
                     }}>${statistics.total_revenue.toFixed(2)}</p>
                   </div>
                   <div className="stat-card" style={{
                     backgroundColor: is_night_mode ? '#4b5563' : '#f3f4f6',
-                    padding: is_small_mobile ? '1rem' : is_mobile ? '1.25rem' : '1.5rem',
+                    padding: is_small_mobile ? '0.75rem' : is_mobile ? '1rem' : '1.5rem',
                     borderRadius: '12px',
                     boxShadow: is_night_mode ? '0 4px 6px rgba(0, 0, 0, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                     border: `1px solid ${is_night_mode ? '#6b7280' : '#d1d5db'}`,
                     textAlign: 'center',
                     transition: 'all 0.3s ease',
-                    width: '100%'
+                    width: '100%',
+                    minHeight: is_small_mobile ? '90px' : is_mobile ? '100px' : '120px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
                   }}>
                     <h3 style={{
-                      fontSize: is_small_mobile ? '0.7rem' : is_mobile ? '0.75rem' : '0.875rem', 
+                      fontSize: is_small_mobile ? '0.65rem' : is_mobile ? '0.7rem' : '0.875rem', 
                       color: is_night_mode ? '#9ca3af' : '#6b7280', 
                       marginBottom: '0.5rem', 
                       textTransform: 'uppercase', 
-                      letterSpacing: '0.05em'
+                      letterSpacing: '0.05em',
+                      lineHeight: '1.2'
                     }}>PROSEČNO TRAJANJE</h3>
                     <p style={{
                       fontSize: is_small_mobile ? '1.25rem' : is_mobile ? '1.5rem' : '2rem', 
                       fontWeight: '700', 
                       color: is_night_mode ? '#e5e7eb' : '#374151', 
-                      margin: '0'
+                      margin: '0',
+                      lineHeight: '1.2'
                     }}>{statistics.average_duration} min</p>
                   </div>
                 </div>
@@ -1488,7 +1808,7 @@ export const AdminDashboard: React.FC = () => {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="count" fill="#6b7280" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1527,9 +1847,9 @@ export const AdminDashboard: React.FC = () => {
                     <Line 
                       type="monotone" 
                       dataKey="count" 
-                      stroke="#3b82f6" 
+                      stroke="#6b7280" 
                       strokeWidth={3}
-                      dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                      dot={{ fill: '#6b7280', strokeWidth: 2, r: 4 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -1588,6 +1908,20 @@ export const AdminDashboard: React.FC = () => {
         {active_tab === 'spaces' && (
           <div className="spaces-tab">
             <h2>{language_service.t('parking_spaces')}</h2>
+            {space_status_feedback && (
+              <div style={{
+                margin: '0.5rem 0 1rem',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#dcfce7',
+                color: '#166534',
+                borderRadius: '6px'
+              }}>
+                {space_status_feedback}
+              </div>
+            )}
+            <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+              {language_service.t('spaces')} - {parking_spaces.length}
+            </p>
             <div className="spaces-grid">
               {parking_spaces.map(space => (
                 <div key={space.id} className="space-card">
@@ -1595,6 +1929,44 @@ export const AdminDashboard: React.FC = () => {
                   <p>{language_service.t('status')}: <span className={`status ${space.status}`}>{space.status}</span></p>
                   <p>{language_service.t('sensor')}: {space.sensor_id}</p>
                   {space.license_plate && <p>{language_service.t('plate')}: {space.license_plate}</p>}
+                  {current_user?.role === 'superadmin' && (
+                    <div className="space-actions" style={{ marginTop: '0.75rem' }}>
+                      <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.5rem' }}>Manual override</p>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => update_space_status(space.id, 'vacant')}
+                          disabled={space_status_loading === space.id}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '4px',
+                            border: 'none',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Set Vacant
+                        </button>
+                        <button
+                          onClick={() => update_space_status(space.id, 'occupied')}
+                          disabled={space_status_loading === space.id}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '4px',
+                            border: 'none',
+                            backgroundColor: '#f97316',
+                            color: 'white',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Set Occupied
+                        </button>
+                      </div>
+                      {space_status_loading === space.id && (
+                        <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>Updating...</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1794,6 +2166,482 @@ export const AdminDashboard: React.FC = () => {
         {/* Zone Management Tab */}
         {active_tab === 'zones' && current_user?.role === 'superadmin' && (
           <ZoneManagement is_superadmin={true} />
+        )}
+
+        {/* Real Sensors Tab */}
+        {active_tab === 'real_sensors' && current_user?.role === 'superadmin' && (
+          <div className="real-sensors-tab" style={{ padding: '1rem' }}>
+            <div className="tab-header" style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginBottom: '1rem'
+            }}>
+              <h2>Real Sensors</h2>
+              <button 
+                onClick={() => {
+                  load_real_sensors_data();
+                  load_firewall_whitelist();
+                }}
+                disabled={real_sensors_loading}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#4b5563',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                {real_sensors_loading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {/* Server Status */}
+            <div style={{ 
+              marginBottom: '1rem',
+              padding: '1rem',
+              backgroundColor: is_night_mode ? '#2d3748' : '#f3f4f6',
+              borderRadius: '8px'
+            }}>
+              <h3 style={{ margin: '0 0 0.5rem 0' }}>Server Status</h3>
+              <p style={{ margin: 0 }}>
+                TCP Server: <span style={{ 
+                  color: real_sensors_server_status === 'running' ? 'green' : 'red',
+                  fontWeight: 'bold'
+                }}>
+                  {real_sensors_server_status}
+                </span>
+              </p>
+            </div>
+
+            <div style={{
+              marginBottom: '1rem',
+              padding: '1rem',
+              backgroundColor: is_night_mode ? '#1f2937' : '#f9fafb',
+              borderRadius: '8px',
+              border: `1px solid ${is_night_mode ? '#374151' : '#e5e7eb'}`
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Firewall Whitelist</h3>
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
+                    Maintain the IP allow list for your firewalld scripts. Stored IPs: {firewall_whitelist.length}.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      set_firewall_show_list(prev => {
+                        const next = !prev;
+                        if (next) {
+                          set_firewall_page(1);
+                        }
+                        return next;
+                      });
+                    }}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: firewall_show_list ? '#4b5563' : '#1d4ed8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {firewall_show_list ? 'Hide List' : 'Show List'}
+                  </button>
+                  <button
+                    onClick={save_firewall_whitelist}
+                    disabled={firewall_saving || firewall_loading}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {firewall_saving ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+              {firewall_error && (
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '4px' }}>
+                  {firewall_error}
+                </div>
+              )}
+              {firewall_success && (
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#dcfce7', color: '#166534', borderRadius: '4px' }}>
+                  {firewall_success}
+                </div>
+              )}
+
+              {firewall_show_list && (
+                <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: is_night_mode ? '#374151' : '#e5e7eb' }}>
+                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>IP Address</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left' }}>Label / Description</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'center' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {firewall_loading ? (
+                        <tr>
+                          <td colSpan={3} style={{ padding: '1rem', textAlign: 'center' }}>Loading whitelist...</td>
+                        </tr>
+                      ) : firewall_whitelist.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} style={{ padding: '1rem', textAlign: 'center', color: '#6b7280' }}>No IP addresses added yet.</td>
+                        </tr>
+                      ) : (
+                        displayed_firewall_whitelist.map((entry, index) => {
+                          const globalIndex = firewall_page_start + index;
+                          return (
+                            <tr key={`${entry.ip}-${globalIndex}`} style={{ borderBottom: `1px solid ${is_night_mode ? '#374151' : '#e5e7eb'}` }}>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input
+                                  type="text"
+                                  value={entry.ip}
+                                  onChange={(e) => update_firewall_entry(globalIndex, 'ip', e.target.value)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.5rem',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: '4px',
+                                    fontFamily: 'monospace'
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input
+                                  type="text"
+                                  value={entry.label || ''}
+                                  onChange={(e) => update_firewall_entry(globalIndex, 'label', e.target.value)}
+                                  placeholder="e.g., Remote office"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.5rem',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: '4px'
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                <button
+                                  onClick={() => remove_firewall_entry(globalIndex)}
+                                  style={{
+                                    padding: '0.25rem 0.75rem',
+                                    backgroundColor: '#ef4444',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                  {firewall_whitelist.length > FIREWALL_PAGE_SIZE && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                        Page {safe_firewall_page} of {total_firewall_pages}
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => set_firewall_page(prev => Math.max(1, prev - 1))}
+                          disabled={safe_firewall_page === 1}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '4px',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: safe_firewall_page === 1 ? '#e5e7eb' : 'white',
+                            cursor: safe_firewall_page === 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          onClick={() => set_firewall_page(prev => Math.min(total_firewall_pages, prev + 1))}
+                          disabled={safe_firewall_page === total_firewall_pages}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '4px',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: safe_firewall_page === total_firewall_pages ? '#e5e7eb' : 'white',
+                            cursor: safe_firewall_page === total_firewall_pages ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr) 120px', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={firewall_new_ip}
+                  onChange={(e) => set_firewall_new_ip(e.target.value)}
+                  placeholder="Add IP (e.g., 91.196.152.105)"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                />
+                <input
+                  type="text"
+                  value={firewall_new_label}
+                  onChange={(e) => set_firewall_new_label(e.target.value)}
+                  placeholder="Label (optional)"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                />
+                <button
+                  onClick={add_firewall_entry}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    backgroundColor: '#2563eb',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+              <p style={{ marginTop: '0.75rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                Tip: Changes auto-apply when the server cron/timer runs <code>HELPERS/apply_firewall_whitelist.sh</code>.
+              </p>
+            </div>
+
+            {/* Statistics */}
+            {real_sensors_stats && (
+              <div style={{ 
+                marginBottom: '1rem',
+                padding: '1rem',
+                backgroundColor: is_night_mode ? '#2d3748' : '#f3f4f6',
+                borderRadius: '8px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '1rem'
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Total Received</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{real_sensors_stats.total_received || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Total Updated</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'green' }}>{real_sensors_stats.total_updated || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Ignored (Reservation)</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'orange' }}>{real_sensors_stats.total_ignored_reservation || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Ignored (Unknown)</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#9ca3af' }}>{real_sensors_stats.total_ignored_unknown || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Errors</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'red' }}>{real_sensors_stats.total_errors || 0}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div style={{ 
+              marginBottom: '1rem',
+              padding: '1rem',
+              backgroundColor: is_night_mode ? '#2d3748' : '#f3f4f6',
+              borderRadius: '8px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1rem'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>WPSD ID</label>
+                <input
+                  type="text"
+                  value={real_sensors_filters.wpsd_id}
+                  onChange={(e) => set_real_sensors_filters({...real_sensors_filters, wpsd_id: e.target.value})}
+                  placeholder="Filter by sensor ID"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Action</label>
+                <select
+                  value={real_sensors_filters.action}
+                  onChange={(e) => set_real_sensors_filters({...real_sensors_filters, action: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <option value="">All</option>
+                  <option value="received">Received</option>
+                  <option value="updated">Updated</option>
+                  <option value="ignored_reservation">Ignored (Reservation)</option>
+                  <option value="ignored_unknown">Ignored (Unknown)</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Date From</label>
+                <input
+                  type="date"
+                  value={real_sensors_filters.date_from}
+                  onChange={(e) => set_real_sensors_filters({...real_sensors_filters, date_from: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Date To</label>
+                <input
+                  type="date"
+                  value={real_sensors_filters.date_to}
+                  onChange={(e) => set_real_sensors_filters({...real_sensors_filters, date_to: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    set_real_sensors_filters({
+                      wpsd_id: '',
+                      action: '',
+                      date_from: '',
+                      date_to: '',
+                      limit: 100,
+                      offset: 0
+                    });
+                    setTimeout(() => {
+                      load_real_sensors_data();
+                      load_firewall_whitelist();
+                    }, 100);
+                  }}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Clear Filters
+                </button>
+                <button
+                  onClick={load_real_sensors_data}
+                  disabled={real_sensors_loading}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#4b5563',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    opacity: real_sensors_loading ? 0.6 : 1
+                  }}
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+
+            {/* Logs Table */}
+            <div style={{ 
+              overflowX: 'auto',
+              backgroundColor: is_night_mode ? '#1a202c' : 'white',
+              borderRadius: '8px',
+              border: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}`
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: is_night_mode ? '#2d3748' : '#f9fafb' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>Timestamp</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>WPSD ID</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>WDC ID</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>Action</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>Status</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {real_sensors_logs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+                        {real_sensors_loading ? 'Loading...' : 'No logs found'}
+                      </td>
+                    </tr>
+                  ) : (
+                    real_sensors_logs.map((log, index) => (
+                      <tr key={index} style={{ borderBottom: `1px solid ${is_night_mode ? '#4a5568' : '#e5e7eb'}` }}>
+                        <td style={{ padding: '0.75rem' }}>{log.timestamp || '-'}</td>
+                        <td style={{ padding: '0.75rem' }}>{log.wpsd_id || '-'}</td>
+                        <td style={{ padding: '0.75rem' }}>{log.wdc_id || '-'}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          <span style={{
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            backgroundColor: 
+                              log.action === 'updated' ? '#10b981' :
+                              log.action === 'ignored_reservation' ? '#f59e0b' :
+                              log.action === 'ignored_unknown' ? '#6b7280' :
+                              log.action === 'error' ? '#ef4444' : '#3b82f6',
+                            color: 'white'
+                          }}>
+                            {log.action || '-'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.75rem' }}>
+                          {log.parsed_data?.occupancy_status || '-'}
+                        </td>
+                        <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>{log.message || '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
 
@@ -2032,7 +2880,7 @@ export const AdminDashboard: React.FC = () => {
                   padding: is_small_mobile ? '0.6rem 1rem' : is_mobile ? '0.7rem 1.25rem' : '0.75rem 1.5rem',
                   border: 'none',
                   borderRadius: '6px',
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: '#6b7280',
                   color: 'white',
                   fontSize: is_small_mobile ? '0.8rem' : is_mobile ? '0.85rem' : '0.875rem',
                   fontWeight: '500',
@@ -2041,10 +2889,10 @@ export const AdminDashboard: React.FC = () => {
                   minHeight: '44px'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#2563eb';
+                  e.currentTarget.style.backgroundColor = '#4b5563';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#3b82f6';
+                  e.currentTarget.style.backgroundColor = '#6b7280';
                 }}
               >
                 {editing_admin_user ? language_service.t('update_user') : language_service.t('add_user')}
@@ -2511,7 +3359,7 @@ export const AdminDashboard: React.FC = () => {
                   padding: '0.75rem 1.5rem',
                   border: 'none',
                   borderRadius: '6px',
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: '#6b7280',
                   color: 'white',
                   fontSize: '0.875rem',
                   fontWeight: '500',
@@ -2519,10 +3367,10 @@ export const AdminDashboard: React.FC = () => {
                   transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#2563eb';
+                  e.currentTarget.style.backgroundColor = '#4b5563';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#3b82f6';
+                  e.currentTarget.style.backgroundColor = '#6b7280';
                 }}
               >
                 {editing_sensor ? language_service.t('update') : language_service.t('save')}

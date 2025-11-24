@@ -8,9 +8,12 @@ interface LicensePlateInputProps {
 
 export const LicensePlateInput: React.FC<LicensePlateInputProps> = ({ onLicensePlateSet }) => {
   const [license_plate, set_license_plate] = useState('');
+  const [password, set_password] = useState('');
   const [is_submitting, set_is_submitting] = useState(false);
   const [input_error, set_input_error] = useState('');
+  const [password_error, set_password_error] = useState('');
   const [is_focused, set_is_focused] = useState(false);
+  const [is_password_focused, set_is_password_focused] = useState(false);
   const [time_shade, set_time_shade] = useState(0); // 0 = full day, 1 = full night
   const storage_service = StorageService.getInstance();
   const language_service = LanguageService.getInstance();
@@ -79,6 +82,20 @@ export const LicensePlateInput: React.FC<LicensePlateInputProps> = ({ onLicenseP
     return true;
   };
 
+  const validate_password = (pwd: string): boolean => {
+    const trimmed_pwd = pwd.trim();
+    if (trimmed_pwd.length < 4) {
+      set_password_error(language_service.t('password_min_length'));
+      return false;
+    }
+    if (trimmed_pwd.length > 50) {
+      set_password_error(language_service.t('password_max_length'));
+      return false;
+    }
+    set_password_error('');
+    return true;
+  };
+
   const handle_input_change = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     set_license_plate(value);
@@ -87,17 +104,110 @@ export const LicensePlateInput: React.FC<LicensePlateInputProps> = ({ onLicenseP
     }
   };
 
-  const handle_submit = (e: React.FormEvent) => {
+  const handle_password_change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    set_password(value);
+    if (password_error) {
+      validate_password(value);
+    }
+  };
+
+  const handle_submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate_license_plate(license_plate)) {
-      set_is_submitting(true);
+    
+    const is_plate_valid = validate_license_plate(license_plate);
+    const is_password_valid = validate_password(password);
+    
+    if (!is_plate_valid || !is_password_valid) {
+      return;
+    }
+    
+    set_is_submitting(true);
+    
+    try {
+      const formatted_plate = license_plate.trim().toUpperCase();
+      const trimmed_password = password.trim();
       
-      setTimeout(() => {
-        const formatted_plate = license_plate.trim().toUpperCase();
-        storage_service.save_license_plate(formatted_plate);
-        onLicensePlateSet(formatted_plate);
-        set_is_submitting(false);
-      }, 500);
+      // Save license plate locally
+      storage_service.save_license_plate(formatted_plate);
+      
+      // TABLICA JE KLJUČNA - provera po tablici i lozinci (ista za web i Telegram!)
+      const saved_connection = await check_saved_wallet_connection(formatted_plate, trimmed_password);
+      
+      if (saved_connection && saved_connection.wallet_address) {
+        // ✨ Wallet već postoji za ovu tablicu - auto-connect!
+        console.log('[LicensePlateInput] ✨ Pronađen wallet za tablicu, automatski povezivam:', saved_connection.wallet_address.substring(0, 10) + '...');
+        // Store wallet address temporarily for auto-connection
+        storage_service.set_saved_wallet_for_auto_connect(saved_connection.wallet_address);
+      } else {
+        // Nova tablica, korisnik mora prvo da poveže wallet
+        console.log('[LicensePlateInput] Nova tablica - korisnik mora da poveže wallet');
+      }
+      
+      // Čuva konekciju (license_plate je primarna veza!)
+      await save_wallet_connection(formatted_plate, trimmed_password);
+      
+      onLicensePlateSet(formatted_plate);
+      set_is_submitting(false);
+    } catch (error) {
+      console.error('Error submitting license plate:', error);
+      set_is_submitting(false);
+      alert('Failed to save license plate. Please try again.');
+    }
+  };
+
+  const check_saved_wallet_connection = async (plate: string, pwd: string): Promise<{ wallet_address: string } | null> => {
+    try {
+      const response = await fetch(`${window.location.origin}/api/wallet-connections.php?license_plate=${encodeURIComponent(plate)}&password=${encodeURIComponent(pwd)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.wallet_address) {
+          console.log('[LicensePlateInput] Wallet found by license plate + password:', data.wallet_address.substring(0, 10) + '...');
+          return { wallet_address: data.wallet_address };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error checking saved wallet connection:', error);
+      return null;
+    }
+  };
+
+  const save_wallet_connection = async (plate: string, pwd: string): Promise<void> => {
+    try {
+      // Get current wallet address if connected
+      const ton_payment_service = (await import('../services/ton_payment_service')).TonPaymentService.getInstance();
+      const wallet_address = await ton_payment_service.getWalletAddress();
+      
+      if (wallet_address) {
+        // Save wallet connection - TABLICA je ključna za sve (web + telegram!)
+        const response = await fetch(`${window.location.origin}/api/wallet-connections.php`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            license_plate: plate,
+            password: pwd, // Will be hashed on server
+            wallet_address: wallet_address
+          }),
+        });
+        
+        if (!response.ok) {
+          console.warn('Failed to save wallet connection:', await response.text());
+        } else {
+          console.log('[LicensePlateInput] ✨ Wallet konekcija čuvana za tablicu:', plate, '→', wallet_address.substring(0, 10) + '...');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving wallet connection:', error);
+      // Don't fail the form submission if saving connection fails
     }
   };
 
@@ -151,13 +261,32 @@ export const LicensePlateInput: React.FC<LicensePlateInputProps> = ({ onLicenseP
                 </div>
               )}
             </div>
+            
+            <div className={`input-wrapper ${is_password_focused ? 'focused' : ''} ${password_error ? 'error' : ''}`} style={{ marginTop: '1rem' }}>
+              <input
+                type="password"
+                value={password}
+                onChange={handle_password_change}
+                onFocus={() => set_is_password_focused(true)}
+                onBlur={() => set_is_password_focused(false)}
+                placeholder={language_service.t('enter_password_placeholder')}
+                className="license-plate-input"
+                maxLength={50}
+                required
+              />
+              {password_error && (
+                <div className="error-message">
+                  {password_error}
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="button-group">
             <button
               type="submit"
               className="license-plate-submit"
-              disabled={is_submitting || !license_plate.trim()}
+              disabled={is_submitting || !license_plate.trim() || !password.trim()}
             >
               {is_submitting ? (
                 <span className="loading-text">

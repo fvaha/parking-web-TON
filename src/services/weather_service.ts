@@ -219,7 +219,7 @@ export class WeatherService {
     if (aqi <= 100) return '#FFFF00'; // Moderate - Yellow
     if (aqi <= 150) return '#FF7E00'; // Unhealthy for Sensitive - Orange
     if (aqi <= 200) return '#FF0000'; // Unhealthy - Red
-    if (aqi <= 300) return '#8F3F97'; // Very Unhealthy - Purple
+    if (aqi <= 300) return '#4b5563'; // Very Unhealthy - Dark Gray
     return '#7E0023'; // Hazardous - Maroon
   }
 

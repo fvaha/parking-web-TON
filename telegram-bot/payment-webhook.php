@@ -85,7 +85,32 @@ try {
                         if ($user_data) {
                             $lang = $user_data['language'] ?? 'en';
                             
-                            $telegram->sendMessage([
+                            // Get space to get coordinates for navigation
+                            $parking_service = new \TelegramBot\Services\ParkingService();
+                            $space = $parking_service->getSpaceById($space_id);
+                            
+                            // Create navigation keyboard if coordinates are available
+                            $keyboard = null;
+                            if ($space && isset($space['coordinates']) && isset($space['coordinates']['lat']) && isset($space['coordinates']['lng'])) {
+                                $lat = $space['coordinates']['lat'];
+                                $lng = $space['coordinates']['lng'];
+                                if ($lat != 0.0 && $lng != 0.0) {
+                                    // Create Google Maps URL - will open in app if installed, otherwise in browser
+                                    $maps_url = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
+                                    $keyboard = [
+                                        'inline_keyboard' => [
+                                            [
+                                                [
+                                                    'text' => \TelegramBot\Services\LanguageService::t('navigate', $lang),
+                                                    'url' => $maps_url
+                                                ]
+                                            ]
+                                        ]
+                                    ];
+                                }
+                            }
+                            
+                            $message_params = [
                                 'chat_id' => $user_data['chat_id'],
                                 'text' => \TelegramBot\Services\LanguageService::t('reserve_success_premium', $lang, [
                                     'space_id' => $space_id,
@@ -93,7 +118,13 @@ try {
                                     'amount_ton' => $amount
                                 ]),
                                 'parse_mode' => 'Markdown'
-                            ]);
+                            ];
+                            
+                            if ($keyboard) {
+                                $message_params['reply_markup'] = json_encode($keyboard);
+                            }
+                            
+                            $telegram->sendMessage($message_params);
                         }
                         
                         http_response_code(200);

@@ -1,8 +1,8 @@
 {
   "url": "https://parkiraj.info",
-  "name": "Parkiraj.info",
-  "iconUrl": "https://parkiraj.info/samo logo parkinfo.png",
+  "name": "Parkiraj.info - Smart Parking",
+  "description": "Smart parking application with TON blockchain payments",
+  "iconUrl": "https://parkiraj.info/logo-svetli.png",
   "termsOfUseUrl": "https://parkiraj.info/terms",
   "privacyPolicyUrl": "https://parkiraj.info/privacy"
 }
-

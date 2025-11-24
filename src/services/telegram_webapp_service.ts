@@ -140,7 +140,10 @@ export class TelegramWebAppService {
 declare global {
   interface Window {
     Telegram?: {
-      WebApp?: any;
+      WebApp?: {
+        openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
+        [key: string]: any;
+      };
     };
   }
 }

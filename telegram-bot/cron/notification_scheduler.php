@@ -62,8 +62,37 @@ try {
                 echo "Queued 10-minute warning for Space #{$space['id']}, user {$user['telegram_user_id']}\n";
             }
             
-            // Check if reservation just ended (within last minute)
-            if ($time_until_end < 0 && $time_until_end > -60) {
+            // Check if reservation has expired (more than 1 minute ago)
+            // Auto-complete expired reservations
+            if ($time_until_end < -60) {
+                // Reservation expired more than 1 minute ago - auto-complete it
+                error_log("Auto-completing expired reservation for Space #{$space['id']}, license plate: {$space['license_plate']}");
+                
+                // Update parking space status to vacant
+                $update_result = $db->updateParkingSpaceStatus(
+                    $space['id'],
+                    'vacant',
+                    null, // license_plate
+                    null, // reservation_time
+                    null, // occupied_since
+                    null  // payment_tx_hash
+                );
+                
+                if ($update_result['success']) {
+                    // Send notification that reservation ended
+                    $message = "✅ Your reservation at Space #{$space['id']} has ended and the space has been automatically freed.";
+                    $notification_service->queueNotification(
+                        $user['telegram_user_id'],
+                        'reservation_ended',
+                        $message,
+                        ['parking_space_id' => $space['id']]
+                    );
+                    echo "Auto-completed expired reservation for Space #{$space['id']}, user {$user['telegram_user_id']}\n";
+                } else {
+                    error_log("Failed to auto-complete reservation for Space #{$space['id']}: " . ($update_result['error'] ?? 'Unknown error'));
+                }
+            } elseif ($time_until_end < 0 && $time_until_end > -60) {
+                // Reservation just ended (within last minute) - send notification
                 $message = "✅ Your reservation at Space #{$space['id']} has ended.";
                 $notification_service->queueNotification(
                     $user['telegram_user_id'],
@@ -76,8 +105,57 @@ try {
         }
     }
     
+    // Also check and auto-complete reservations from reservations table if it exists
+    try {
+        $active_reservations = $db->getActiveReservations();
+        $now = new DateTime();
+        $auto_completed_count = 0;
+        
+        foreach ($active_reservations as $reservation) {
+            if (!isset($reservation['end_time']) || empty($reservation['end_time'])) {
+                continue; // Skip reservations without end_time
+            }
+            
+            try {
+                $end_time = new DateTime($reservation['end_time']);
+                
+                // Check if reservation has expired (more than 1 minute ago)
+                if ($end_time <= $now) {
+                    // Complete the reservation in database
+                    $complete_result = $db->completeReservation($reservation['id']);
+                    
+                    if ($complete_result['success']) {
+                        // Update parking space status to vacant
+                        $update_result = $db->updateParkingSpaceStatus(
+                            $reservation['parking_space_id'],
+                            'vacant',
+                            null, // license_plate
+                            null, // reservation_time
+                            null, // occupied_since
+                            null  // payment_tx_hash
+                        );
+                        
+                        if ($update_result['success']) {
+                            $auto_completed_count++;
+                            echo "Auto-completed reservation #{$reservation['id']} for Space #{$reservation['parking_space_id']}\n";
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Error processing reservation ' . $reservation['id'] . ': ' . $e->getMessage());
+                continue; // Skip this reservation and continue with others
+            }
+        }
+        
+        if ($auto_completed_count > 0) {
+            echo "Auto-completed {$auto_completed_count} expired reservation(s) from reservations table\n";
+        }
+    } catch (Exception $e) {
+        error_log('Error auto-completing reservations: ' . $e->getMessage());
+    }
+    
     // Note: Space availability notifications are handled in the API when spaces become vacant
-    // This scheduler focuses on reservation reminders
+    // This scheduler focuses on reservation reminders and auto-completion
     
     echo "Notification scheduling completed.\n";
     echo "Total notifications processed: {$result['sent']} sent, {$result['failed']} failed\n";

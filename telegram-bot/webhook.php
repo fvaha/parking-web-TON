@@ -279,6 +279,9 @@ try {
                     $success = $parking_service->reserveSpace($space_id, $user_data['license_plate'], $tx_hash);
                     
                     if ($success) {
+                        // Get space to get coordinates for navigation
+                        $space = $parking_service->getSpaceById($space_id);
+                        
                         // Send success message based on payment type
                         if ($payment_type === 'ton') {
                             $success_text = \TelegramBot\Services\LanguageService::t('ton_payment_success', $lang, [
@@ -294,11 +297,38 @@ try {
                             ]);
                         }
                         
-                        $telegram->sendMessage([
+                        // Create navigation keyboard if coordinates are available
+                        $keyboard = null;
+                        if ($space && isset($space['coordinates']) && isset($space['coordinates']['lat']) && isset($space['coordinates']['lng'])) {
+                            $lat = $space['coordinates']['lat'];
+                            $lng = $space['coordinates']['lng'];
+                            if ($lat != 0.0 && $lng != 0.0) {
+                                // Create Google Maps URL - will open in app if installed, otherwise in browser
+                                $maps_url = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
+                                $keyboard = [
+                                    'inline_keyboard' => [
+                                        [
+                                            [
+                                                'text' => \TelegramBot\Services\LanguageService::t('navigate', $lang),
+                                                'url' => $maps_url
+                                            ]
+                                        ]
+                                    ]
+                                ];
+                            }
+                        }
+                        
+                        $message_params = [
                             'chat_id' => $chat_id,
                             'text' => $success_text,
                             'parse_mode' => 'Markdown'
-                        ]);
+                        ];
+                        
+                        if ($keyboard) {
+                            $message_params['reply_markup'] = json_encode($keyboard);
+                        }
+                        
+                        $telegram->sendMessage($message_params);
                         
                         error_log("Reservation created via Telegram {$payment_type} payment for space {$space_id} with tx_hash: {$tx_hash}");
                     } else {
@@ -337,10 +367,225 @@ try {
         $chat_id = $callback_query->getMessage()->getChat()->getId();
         $user = $callback_query->getFrom();
         
+        error_log("Callback query received: data={$data}, chat_id={$chat_id}");
+        
         // Get user language
         $lang = \TelegramBot\Services\LanguageService::getLanguage($user);
         
-        if ($data === 'link_account') {
+        // Helper function to create a fake message with command text
+        $create_command_message = function($command_text) use ($user, $chat_id, $callback_query) {
+            $original_message = $callback_query->getMessage();
+            $message_id = isset($original_message->data['message_id']) ? $original_message->data['message_id'] : time();
+            
+            $message_data = [
+                'message_id' => $message_id,
+                'from' => [
+                    'id' => $user->getId(),
+                    'is_bot' => false,
+                    'first_name' => $user->getFirstName() ?? 'User',
+                    'username' => $user->getUsername()
+                ],
+                'chat' => [
+                    'id' => $chat_id,
+                    'type' => 'private'
+                ],
+                'date' => time(),
+                'text' => $command_text
+            ];
+            return new TelegramMessage($message_data);
+        };
+        
+        // Handle menu button callbacks (from inline keyboard menu)
+        if ($data === 'menu_reserve') {
+            try {
+                // Answer callback first to remove loading indicator
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $reserve_command = new \TelegramBot\Commands\ReserveCommand();
+                $reserve_message = $create_command_message('/reserve');
+                $reserve_command->handle($telegram, $reserve_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_reserve: " . $e->getMessage());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error: ' . $e->getMessage(),
+                    'show_alert' => true
+                ]);
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ Error: " . $e->getMessage()
+                ]);
+            }
+        } elseif ($data === 'menu_spaces') {
+            try {
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $spaces_command = new \TelegramBot\Commands\SpacesCommand();
+                $spaces_message = $create_command_message('/spaces');
+                $spaces_command->handle($telegram, $spaces_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_spaces: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error: ' . $e->getMessage(),
+                    'show_alert' => true
+                ]);
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ Error executing Spaces command: " . $e->getMessage()
+                ]);
+            }
+        } elseif ($data === 'menu_status') {
+            try {
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $status_command = new \TelegramBot\Commands\StatusCommand();
+                $status_message = $create_command_message('/status');
+                $status_command->handle($telegram, $status_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_status: " . $e->getMessage());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
+        } elseif ($data === 'menu_wallet') {
+            try {
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                $wallet_message = $create_command_message('/wallet');
+                $wallet_command->handle($telegram, $wallet_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_wallet: " . $e->getMessage());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
+        } elseif ($data === 'menu_preferences') {
+            try {
+                error_log("menu_preferences callback received, chat_id: {$chat_id}");
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                error_log("Creating PreferencesCommand instance...");
+                $preferences_command = new \TelegramBot\Commands\PreferencesCommand();
+                error_log("Creating preferences message...");
+                $preferences_message = $create_command_message('/preferences');
+                error_log("Calling PreferencesCommand->handle()...");
+                $preferences_command->handle($telegram, $preferences_message);
+                error_log("PreferencesCommand->handle() completed");
+            } catch (\Throwable $e) {
+                error_log("Error in menu_preferences: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                error_log("File: " . $e->getFile() . " Line: " . $e->getLine());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error: ' . $e->getMessage(),
+                    'show_alert' => true
+                ]);
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ Error executing Preferences command: " . $e->getMessage() . "\n\nFile: " . basename($e->getFile()) . " Line: " . $e->getLine()
+                ]);
+            }
+        } elseif ($data === 'menu_weather') {
+            try {
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $weather_command = new \TelegramBot\Commands\WeatherCommand();
+                $weather_message = $create_command_message('/weather');
+                $weather_command->handle($telegram, $weather_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_weather: " . $e->getMessage());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
+        } elseif ($data === 'menu_help') {
+            try {
+                error_log("menu_help callback received, chat_id: {$chat_id}");
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                error_log("Creating HelpCommand instance...");
+                $help_command = new \TelegramBot\Commands\HelpCommand();
+                error_log("Creating help message...");
+                $help_message = $create_command_message('/help');
+                error_log("Calling HelpCommand->handle()...");
+                $help_command->handle($telegram, $help_message);
+                error_log("HelpCommand->handle() completed");
+            } catch (\Throwable $e) {
+                error_log("Error in menu_help: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                error_log("File: " . $e->getFile() . " Line: " . $e->getLine());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error: ' . $e->getMessage(),
+                    'show_alert' => true
+                ]);
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ Error executing Help command: " . $e->getMessage() . "\n\nFile: " . basename($e->getFile()) . " Line: " . $e->getLine()
+                ]);
+            }
+        } elseif ($data === 'menu_lang') {
+            try {
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $lang_command = new \TelegramBot\Commands\LangCommand();
+                $lang_message = $create_command_message('/lang');
+                $lang_command->handle($telegram, $lang_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_lang: " . $e->getMessage());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error: ' . $e->getMessage(),
+                    'show_alert' => true
+                ]);
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ Error executing Language command: " . $e->getMessage()
+                ]);
+            }
+        } elseif ($data === 'menu_start') {
+            try {
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+                $start_command = new \TelegramBot\Commands\StartCommand();
+                $start_message = $create_command_message('/start');
+                $start_command->handle($telegram, $start_message);
+            } catch (\Throwable $e) {
+                error_log("Error in menu_start: " . $e->getMessage());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
+        } elseif ($data === 'link_account') {
             $link_texts = [
                 'en' => "🔗 To link your account, use the command:\n/link <license_plate>\n\nExample: /link ABC123",
                 'sr' => "🔗 Da povežete nalog, koristite komandu:\n/link <registarska_tablica>\n\nPrimer: /link ABC123",
@@ -438,37 +683,81 @@ try {
                 'callback_query_id' => $callback_query->getId()
             ]);
         } elseif ($data === 'wallet_setup_from_reserve') {
-            // Show wallet setup from reserve flow
-            $wallet_command = new \TelegramBot\Commands\WalletCommand();
-            $wallet_command->handle($telegram, $callback_query->getMessage());
-            
-            $telegram->answerCallbackQuery([
-                'callback_query_id' => $callback_query->getId()
-            ]);
+            try {
+                // Show wallet setup from reserve flow
+                $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                $wallet_command->handle($telegram, $callback_query->getMessage());
+                
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Loading...'
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Error in wallet_setup_from_reserve: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
         } elseif ($data === 'wallet_connect') {
-            // Show wallet connect prompt
-            $wallet_command = new \TelegramBot\Commands\WalletCommand();
-            $wallet_command->showWalletConnectPrompt($telegram, $chat_id, $lang);
-            
-            $telegram->answerCallbackQuery([
-                'callback_query_id' => $callback_query->getId()
-            ]);
+            try {
+                // Show wallet connect prompt
+                $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                $wallet_command->showWalletConnectPrompt($telegram, $chat_id, $lang);
+                
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Please enter your wallet address'
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Error in wallet_connect: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
         } elseif ($data === 'wallet_change') {
-            // Show wallet connect prompt for changing
-            $wallet_command = new \TelegramBot\Commands\WalletCommand();
-            $wallet_command->showWalletConnectPrompt($telegram, $chat_id, $lang);
-            
-            $telegram->answerCallbackQuery([
-                'callback_query_id' => $callback_query->getId()
-            ]);
+            try {
+                // Show wallet connect prompt for changing
+                $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                $wallet_command->showWalletConnectPrompt($telegram, $chat_id, $lang);
+                
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Please enter your new wallet address'
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Error in wallet_change: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
         } elseif ($data === 'wallet_disconnect') {
-            // Disconnect wallet
-            $wallet_command = new \TelegramBot\Commands\WalletCommand();
-            $wallet_command->disconnectWallet($telegram, $chat_id, $user->getId(), $lang);
-            
-            $telegram->answerCallbackQuery([
-                'callback_query_id' => $callback_query->getId()
-            ]);
+            try {
+                // Disconnect wallet
+                $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                $wallet_command->disconnectWallet($telegram, $chat_id, $user->getId(), $lang);
+                
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Wallet disconnected'
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Error in wallet_disconnect: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                $telegram->answerCallbackQuery([
+                    'callback_query_id' => $callback_query->getId(),
+                    'text' => 'Error occurred. Please try again.',
+                    'show_alert' => true
+                ]);
+            }
         } elseif (str_starts_with($data, 'payment_stars:')) {
             // User selected Telegram Stars payment
             // Extract space_id from callback_data: "payment_stars:123"
@@ -746,6 +1035,440 @@ try {
             $telegram->answerCallbackQuery([
                 'callback_query_id' => $callback_query->getId()
             ]);
+        } elseif (str_starts_with($data, 'pref_free:')) {
+            // Handle free spaces preference toggle
+            $value = substr($data, 10); // Remove 'pref_free:' prefix
+            $is_on = ($value === 'on');
+            
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_free_spaces' => $is_on]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Free spaces notification " . ($is_on ? 'enabled' : 'disabled') . "!"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif (str_starts_with($data, 'pref_expiry:')) {
+            // Handle expiry preference toggle
+            $value = substr($data, 12); // Remove 'pref_expiry:' prefix
+            $is_on = ($value === 'on');
+            
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_reservation_expiry' => $is_on ? 1 : 0]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Reservation expiry notification " . ($is_on ? 'enabled' : 'disabled') . "!"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif ($data === 'pref_select_street') {
+            // Show street selection
+            $parking_service = new \TelegramBot\Services\ParkingService();
+            $streets = $parking_service->getUniqueStreets();
+            
+            if (empty($streets)) {
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ No streets available."
+                ]);
+            } else {
+                $text = "🛣️ Select a street for notifications:\n\n";
+                $keyboard = ['inline_keyboard' => []];
+                $row = [];
+                
+                foreach ($streets as $street_name => $space_count) {
+                    $row[] = [
+                        'text' => "🛣️ {$street_name} ({$space_count})",
+                        'callback_data' => 'pref_street:' . urlencode($street_name)
+                    ];
+                    
+                    if (count($row) >= 2) {
+                        $keyboard['inline_keyboard'][] = $row;
+                        $row = [];
+                    }
+                }
+                
+                if (!empty($row)) {
+                    $keyboard['inline_keyboard'][] = $row;
+                }
+                
+                $keyboard['inline_keyboard'][] = [[
+                    'text' => '🏠 Back to Preferences',
+                    'callback_data' => 'menu_preferences'
+                ]];
+                
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => $text,
+                    'reply_markup' => json_encode($keyboard)
+                ]);
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif (str_starts_with($data, 'pref_street:')) {
+            // Handle street selection
+            $street_name = urldecode(substr($data, 12)); // Remove 'pref_street:' prefix
+            
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_street' => $street_name]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Street notification set to: {$street_name}"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif ($data === 'pref_select_zone') {
+            // Show zone selection
+            $parking_service = new \TelegramBot\Services\ParkingService();
+            $zones = $parking_service->getZones();
+            
+            if (empty($zones)) {
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ No zones available."
+                ]);
+            } else {
+                $text = "📍 Select a zone for notifications:\n\n";
+                $keyboard = ['inline_keyboard' => []];
+                
+                foreach ($zones as $zone) {
+                    $keyboard['inline_keyboard'][] = [[
+                        'text' => "📍 {$zone['name']} (ID: {$zone['id']})",
+                        'callback_data' => 'pref_zone:' . $zone['id']
+                    ]];
+                }
+                
+                $keyboard['inline_keyboard'][] = [[
+                    'text' => '🏠 Back to Preferences',
+                    'callback_data' => 'menu_preferences'
+                ]];
+                
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => $text,
+                    'reply_markup' => json_encode($keyboard)
+                ]);
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif (str_starts_with($data, 'pref_zone:')) {
+            // Handle zone selection
+            $zone_id = (int)substr($data, 10); // Remove 'pref_zone:' prefix
+            
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_zone' => $zone_id]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Zone notification set to: Zone ID {$zone_id}"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif ($data === 'pref_select_space') {
+            // Show street selection first, then spaces
+            $parking_service = new \TelegramBot\Services\ParkingService();
+            $streets = $parking_service->getUniqueStreets();
+            
+            if (empty($streets)) {
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ No streets available."
+                ]);
+            } else {
+                $text = "🛣️ First select a street, then choose a space:\n\n";
+                $keyboard = ['inline_keyboard' => []];
+                $row = [];
+                
+                foreach ($streets as $street_name => $space_count) {
+                    $row[] = [
+                        'text' => "🛣️ {$street_name} ({$space_count})",
+                        'callback_data' => 'pref_space_street:' . urlencode($street_name)
+                    ];
+                    
+                    if (count($row) >= 2) {
+                        $keyboard['inline_keyboard'][] = $row;
+                        $row = [];
+                    }
+                }
+                
+                if (!empty($row)) {
+                    $keyboard['inline_keyboard'][] = $row;
+                }
+                
+                $keyboard['inline_keyboard'][] = [[
+                    'text' => '🏠 Back to Preferences',
+                    'callback_data' => 'menu_preferences'
+                ]];
+                
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => $text,
+                    'reply_markup' => json_encode($keyboard)
+                ]);
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif (str_starts_with($data, 'pref_space_street:')) {
+            // Show spaces for selected street
+            $street_name = urldecode(substr($data, 19)); // Remove 'pref_space_street:' prefix
+            $parking_service = new \TelegramBot\Services\ParkingService();
+            $spaces = $parking_service->getSpacesByStreet($street_name);
+            
+            if (empty($spaces)) {
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "❌ No spaces found on {$street_name}."
+                ]);
+            } else {
+                $text = "🅿️ Select a space on {$street_name}:\n\n";
+                $keyboard = ['inline_keyboard' => []];
+                
+                foreach ($spaces as $space) {
+                    $space_name = !empty($space['sensor_name']) ? $space['sensor_name'] : "Space #{$space['id']}";
+                    $keyboard['inline_keyboard'][] = [[
+                        'text' => "🅿️ {$space_name}",
+                        'callback_data' => 'pref_space:' . $space['id']
+                    ]];
+                }
+                
+                $keyboard['inline_keyboard'][] = [[
+                    'text' => '🏠 Back to Preferences',
+                    'callback_data' => 'menu_preferences'
+                ]];
+                
+                $telegram->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => $text,
+                    'reply_markup' => json_encode($keyboard)
+                ]);
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif (str_starts_with($data, 'pref_space:')) {
+            // Handle space selection
+            $space_id = (int)substr($data, 11); // Remove 'pref_space:' prefix
+            
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_specific_space' => $space_id]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Space notification set to: Space ID {$space_id}"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif ($data === 'pref_clear_space') {
+            // Clear space preference
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_specific_space' => null]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Space notification cleared!"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif ($data === 'pref_clear_street') {
+            // Clear street preference
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_street' => null]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Street notification cleared!"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
+        } elseif ($data === 'pref_clear_zone') {
+            // Clear zone preference
+            $db_service = new \TelegramBot\Services\DatabaseService();
+            $db = $db_service->getDatabase();
+            $user_data = $db->getTelegramUserByTelegramId($user->getId());
+            
+            if ($user_data) {
+                $preferences = $db->getNotificationPreferences($user->getId());
+                $update_data = array_merge([
+                    'notify_free_spaces' => $preferences['notify_free_spaces'],
+                    'notify_reservation_expiry' => $preferences['notify_reservation_expiry'] ?? 1,
+                    'notify_specific_space' => $preferences['notify_specific_space'],
+                    'notify_street' => $preferences['notify_street'],
+                    'notify_zone' => $preferences['notify_zone']
+                ], ['notify_zone' => null]);
+                
+                $result = $db->updateNotificationPreferences($user->getId(), $update_data);
+                if ($result['success']) {
+                    $telegram->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => "✅ Zone notification cleared!"
+                    ]);
+                    // Refresh preferences display
+                    $pref_command = new \TelegramBot\Commands\PreferencesCommand();
+                    $pref_message = $create_command_message('/preferences');
+                    $pref_command->handle($telegram, $pref_message);
+                }
+            }
+            
+            $telegram->answerCallbackQuery([
+                'callback_query_id' => $callback_query->getId()
+            ]);
         }
         exit();
     }
@@ -774,29 +1497,113 @@ try {
         exit();
     }
     
-    // Check if message is a button click (from reply keyboard)
-    // If not starting with /, try to convert button text to command
-    if (!str_starts_with($text, '/')) {
-        // Try to get command from button text
+    // Parse command (works for both direct commands and converted reply keyboard buttons)
+    // If text starts with /, it's a command - parse and execute it
+    if (str_starts_with($text, '/')) {
+        // Command will be processed below
+    } else {
+        // Text doesn't start with / - check if it's wallet address, license plate, or reply keyboard button
+        $db_service = new \TelegramBot\Services\DatabaseService();
+        $db = $db_service->getDatabase();
         $user = $message->getFrom();
+        $user_data = $db->getTelegramUserByTelegramId($user->getId());
         $lang = \TelegramBot\Services\LanguageService::getLanguage($user);
-        $command_from_button = \TelegramBot\Services\KeyboardService::getCommandFromButton($text, $lang);
         
-        if ($command_from_button) {
-            // Convert button text to command
-            $text = $command_from_button;
-            error_log("Button clicked, converted to command: {$text}");
-        } else {
-            // Check if this might be a license plate (for linking account)
-            $db_service = new \TelegramBot\Services\DatabaseService();
-            $db = $db_service->getDatabase();
-            $user_data = $db->getTelegramUserByTelegramId($user->getId());
-            
-            $text_trimmed = trim($text);
-            
-            // Check if user is not linked and text looks like a license plate
-            if (!$user_data && preg_match('/^[A-Z0-9\-\s]{2,10}$/i', $text_trimmed)) {
+        $text_trimmed = trim($text);
+        
+        // FIRST: Check if it looks like a TON wallet address or transaction hash
+        // TON addresses can be EQ, UQ, kQ, EQD, or 0: format
+        // This check must come BEFORE reply keyboard check to avoid "Unknown button" error
+        error_log("Checking if text is wallet address: '{$text_trimmed}' (length: " . strlen($text_trimmed) . ")");
+        
+        if (preg_match('/^(EQ|UQ|kQ|EQD|0:)[A-Za-z0-9_-]{46,48}$/', $text_trimmed) || preg_match('/^[A-Za-z0-9]{64}$/', $text_trimmed)) {
+            error_log("Text matches wallet address or TX hash pattern");
+            // Might be wallet address or TX hash
+            // Try wallet address first (46-48 chars after prefix, TON addresses can vary)
+            if (preg_match('/^(EQ|UQ|kQ|EQD|0:)[A-Za-z0-9_-]{46,48}$/', $text_trimmed)) {
+                error_log("Text matches wallet address format, processing...");
+                // Remove reply keyboard when processing wallet address
+                $telegram->removeReplyKeyboard($chat_id);
+                if ($user_data) {
+                    $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                    $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
+                } else {
+                    // User not linked, but still try to process wallet address
+                    // This allows users to connect wallet even if not fully linked
+                    error_log("User not linked, but processing wallet address anyway");
+                    $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                    $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
+                }
+                http_response_code(200);
+                echo json_encode(['ok' => true]);
+                exit();
+            } else {
+                // Might be transaction hash - try to verify payment
+                // Check if user has pending payment
+                if ($user_data) {
+                    error_log("Text might be transaction hash, checking for pending payments");
+                    $db_service = new \TelegramBot\Services\DatabaseService();
+                    $db = $db_service->getDatabase();
+                    
+                    // Try to find recent pending payment for this user
+                    $stmt = $db->prepare("
+                        SELECT tp.*, ps.id as space_id 
+                        FROM ton_payments tp
+                        JOIN parking_spaces ps ON tp.parking_space_id = ps.id
+                        WHERE tp.license_plate = ? 
+                        AND tp.status = 'pending'
+                        AND tp.created_at > datetime('now', '-1 hour')
+                        ORDER BY tp.created_at DESC
+                        LIMIT 1
+                    ");
+                    $stmt->execute([$user_data['license_plate']]);
+                    $pending_payment = $stmt->fetch(\PDO::FETCH_ASSOC);
+                    
+                    if ($pending_payment) {
+                        // Found pending payment, verify this transaction
+                        $space_id = $pending_payment['space_id'];
+                        $parking_service = new \TelegramBot\Services\ParkingService();
+                        $reserve_command = new \TelegramBot\Commands\ReserveCommand();
+                        
+                        $reserve_command->handlePaymentVerification(
+                            $telegram, 
+                            $chat_id, 
+                            $parking_service, 
+                            $space_id, 
+                            $text_trimmed, // tx_hash
+                            $user_data, 
+                            $lang
+                        );
+                    } else {
+                        // No pending payment found
+                        $telegram->sendMessage([
+                            'chat_id' => $chat_id,
+                            'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_tx_unknown', $lang)
+                        ]);
+                    }
+                    
+                    http_response_code(200);
+                    echo json_encode(['ok' => true]);
+                    exit();
+                } else {
+                    // Not a transaction hash either - might be wallet address with different format
+                    // Try to process as wallet address anyway
+                    error_log("Text doesn't match exact wallet format, but might be valid - trying to process");
+                    $telegram->removeReplyKeyboard($chat_id);
+                    $wallet_command = new \TelegramBot\Commands\WalletCommand();
+                    $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
+                    http_response_code(200);
+                    echo json_encode(['ok' => true]);
+                    exit();
+                }
+            }
+        }
+        
+        // SECOND: Check if user is not linked and text looks like a license plate
+        if (!$user_data && preg_match('/^[A-Z0-9\-\s]{2,10}$/i', $text_trimmed)) {
                 error_log("User not linked, text looks like license plate: '{$text_trimmed}'");
+                // Remove reply keyboard when processing license plate
+                $telegram->removeReplyKeyboard($chat_id);
                 // Try to link account with this license plate
                 // Create a new message with /link command by modifying the message object
                 $link_text = "/link " . $text_trimmed;
@@ -816,93 +1623,39 @@ try {
                     'date' => time(),
                     'text' => $link_text
                 ];
-                $link_message = new \TelegramBot\TelegramAPI\Message($message_data);
+                $link_message = new TelegramMessage($message_data);
                 $link_command = new \TelegramBot\Commands\LinkCommand();
                 $link_command->handle($telegram, $link_message);
                 http_response_code(200);
                 echo json_encode(['ok' => true]);
                 exit();
+        }
+        
+        // THIRD: Check if message is a button click (from reply keyboard)
+        // Only check this AFTER wallet address and license plate checks
+        // If not starting with /, try to convert button text to command
+        $command_from_button = \TelegramBot\Services\KeyboardService::getCommandFromButton($text, $lang);
+        
+        if ($command_from_button) {
+            // Convert button text to command
+            $original_text = $text;
+            $text = $command_from_button;
+            error_log("Reply keyboard button clicked, original text: '{$original_text}', converted to command: '{$command_from_button}', new text: '{$text}'");
+            // Update message object with new text so commands receive correct text
+            if (isset($message->data['text'])) {
+                $message->data['text'] = $text;
             }
-            
-            // Check if it looks like a TON wallet address or transaction hash
-            // TON addresses can be EQ, UQ, kQ, EQD, or 0: format
-            error_log("Checking if text is wallet address: '{$text_trimmed}' (length: " . strlen($text_trimmed) . ")");
-            
-            if (preg_match('/^(EQ|UQ|kQ|EQD|0:)[A-Za-z0-9_-]{46,48}$/', $text_trimmed) || preg_match('/^[A-Za-z0-9]{64}$/', $text_trimmed)) {
-                error_log("Text matches wallet address or TX hash pattern");
-                // Might be wallet address or TX hash
-                // Try wallet address first (46-48 chars after prefix, TON addresses can vary)
-                if (preg_match('/^(EQ|UQ|kQ|EQD|0:)[A-Za-z0-9_-]{46,48}$/', $text_trimmed)) {
-                    error_log("Text matches wallet address format, processing...");
-                    if ($user_data) {
-                        $wallet_command = new \TelegramBot\Commands\WalletCommand();
-                        $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
-                    } else {
-                        // User not linked, but still try to process wallet address
-                        // This allows users to connect wallet even if not fully linked
-                        error_log("User not linked, but processing wallet address anyway");
-                        $wallet_command = new \TelegramBot\Commands\WalletCommand();
-                        $wallet_command->handleWalletAddress($telegram, $chat_id, $user->getId(), $text_trimmed, $lang);
-                    }
-                    http_response_code(200);
-                    echo json_encode(['ok' => true]);
-                    exit();
-                } else {
-                        // Might be transaction hash - try to verify payment
-                        // Check if user has pending payment
-                        if ($user_data) {
-                            error_log("Text might be transaction hash, checking for pending payments");
-                            $db_service = new \TelegramBot\Services\DatabaseService();
-                            $db = $db_service->getDatabase();
-                            
-                            // Try to find recent pending payment for this user
-                            $stmt = $db->prepare("
-                                SELECT tp.*, ps.id as space_id 
-                                FROM ton_payments tp
-                                JOIN parking_spaces ps ON tp.parking_space_id = ps.id
-                                WHERE tp.license_plate = ? 
-                                AND tp.status = 'pending'
-                                AND tp.created_at > datetime('now', '-1 hour')
-                                ORDER BY tp.created_at DESC
-                                LIMIT 1
-                            ");
-                            $stmt->bindValue(1, $user_data['license_plate']);
-                            $result = $stmt->execute();
-                            $pending_payment = $result->fetchArray(SQLITE3_ASSOC);
-                            
-                            if ($pending_payment) {
-                                // Found pending payment, verify this transaction
-                                $space_id = $pending_payment['space_id'];
-                                $parking_service = new \TelegramBot\Services\ParkingService();
-                                $reserve_command = new \TelegramBot\Commands\ReserveCommand();
-                                
-                                $reserve_command->handlePaymentVerification(
-                                    $telegram, 
-                                    $chat_id, 
-                                    $parking_service, 
-                                    $space_id, 
-                                    $text_trimmed, // tx_hash
-                                    $user_data, 
-                                    $lang
-                                );
-                            } else {
-                                // No pending payment found
-                                $telegram->sendMessage([
-                                    'chat_id' => $chat_id,
-                                    'text' => \TelegramBot\Services\LanguageService::t('reserve_payment_tx_unknown', $lang)
-                                ]);
-                            }
-                            
-                            http_response_code(200);
-                            echo json_encode(['ok' => true]);
-                            exit();
-                        }
-                    }
-                }
-            
-            error_log('Message is not a command or button: ' . substr($text, 0, 50));
+            // Remove reply keyboard after use
+            $telegram->removeReplyKeyboard($chat_id);
+            // Continue to command processing below - don't exit here
+        } else {
+            // Button text not recognized - send error message
+            $telegram->sendMessage([
+                'chat_id' => $chat_id,
+                'text' => "❌ Unknown button: '{$text}'. Please use /help for available commands."
+            ]);
             http_response_code(200);
-            echo json_encode(['ok' => true, 'message' => 'Not a command']);
+            echo json_encode(['ok' => true]);
             exit();
         }
     }
@@ -920,7 +1673,7 @@ try {
     // Convert to lowercase for case-insensitive matching
     $command = strtolower(trim($command));
     
-    error_log("Parsed command: '{$command}' from raw: '{$command_raw}'");
+    error_log("Parsed command: '{$command}' from raw: '{$command_raw}', full text: '{$text}'");
     
     // Route to command handler
     $command_class = null;
@@ -984,17 +1737,21 @@ try {
     }
     
     if ($command_class) {
-        error_log("Executing command: {$command}");
+        error_log("Executing command: {$command}, message text: '{$text}'");
         try {
+            // Log message object details for debugging
+            $message_text = $message->getText();
+            error_log("Message text before handle: '{$message_text}'");
             $command_class->handle($telegram, $message);
             error_log("Command {$command} executed successfully");
         } catch (\Throwable $cmd_error) {
             error_log("Command {$command} failed: " . $cmd_error->getMessage());
             error_log("Stack trace: " . $cmd_error->getTraceAsString());
+            error_log("File: " . $cmd_error->getFile() . " Line: " . $cmd_error->getLine());
             try {
                 $telegram->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => "❌ Error executing command: " . $cmd_error->getMessage()
+                    'text' => "❌ Error executing command {$command}: " . $cmd_error->getMessage() . "\n\nFile: " . basename($cmd_error->getFile()) . " Line: " . $cmd_error->getLine()
                 ]);
             } catch (\Exception $send_error) {
                 error_log("Failed to send error message: " . $send_error->getMessage());
@@ -1002,6 +1759,10 @@ try {
         }
     } else {
         error_log("No command class found for: {$command}");
+        $telegram->sendMessage([
+            'chat_id' => $chat_id,
+            'text' => "❌ Command '{$command}' not found. Use /help for available commands."
+        ]);
     }
     
     // Always return 200 OK to Telegram

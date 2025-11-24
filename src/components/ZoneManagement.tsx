@@ -15,7 +15,7 @@ export const ZoneManagement: React.FC<ZoneManagementProps> = ({ is_superadmin })
   const [form_data, set_form_data] = useState({
     name: '',
     description: '',
-    color: '#3B82F6',
+    color: '#6b7280',
     hourly_rate: 2.00,
     daily_rate: 20.00,
     is_premium: false,
@@ -113,7 +113,7 @@ export const ZoneManagement: React.FC<ZoneManagementProps> = ({ is_superadmin })
     set_form_data({
       name: '',
       description: '',
-      color: '#3B82F6',
+      color: '#6b7280',
       hourly_rate: 2.00,
       daily_rate: 20.00,
       is_premium: false,

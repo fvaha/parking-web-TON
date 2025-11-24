@@ -119,8 +119,8 @@ body {
 
 /* Focus States */
 .focus\:outline-none:focus { outline: none; }
-.focus\:ring:focus { box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-.focus\:border-blue-500:focus { border-color: #667eea; }
+.focus\:ring:focus { box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1); }
+.focus\:border-blue-500:focus { border-color: #6b7280; }
 
 /* Responsive Utilities */
 @media (max-width: 640px) {

@@ -234,15 +234,15 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
   const get_time_overlay_style = (): React.CSSProperties => {
     const shade = time_shade;
     // Create a dark overlay that gets more opaque as shade increases
-    // Smooth transition from transparent (day) to dark blue/navy (night)
+    // Smooth transition from transparent (day) to dark gray/black (night)
     // Using a more natural color progression with smooth curve
     const opacity = Math.pow(shade, 0.75) * 0.88; // Smooth curve, max 88% opacity
     
-    // Color progression: transparent (day) -> dark blue (dusk) -> navy/black (night)
+    // Color progression: transparent (day) -> dark gray (dusk) -> black (night)
     // Using darker tones that blend naturally with weather backgrounds
     const red = Math.floor(8 + (shade * 22)); // 8-30 (darker red component)
     const green = Math.floor(12 + (shade * 18)); // 12-30 (darker green)
-    const blue = Math.floor(18 + (shade * 37)); // 18-55 (darker blue, main component)
+    const blue = Math.floor(18 + (shade * 37)); // 18-55 (darker gray, main component)
     
     return {
       position: 'absolute',
@@ -277,13 +277,14 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
     if (time_shade > 0.5) {
       return '#ffffff'; // White for night
     } else {
-      return '#2563eb'; // Blue for day
+      return '#6b7280'; // Gray for day
     }
   };
 
   // Collapsed toolbar view
   if (is_collapsed) {
     return (
+      <>
       <header className="main-header collapsed-header" style={{ minHeight: '60px' }}>
         {/* BACKGROUND WEATHER ANIMATION - Full header background */}
         <WeatherBackground 
@@ -331,46 +332,47 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
               </div>
             )}
             
-            {/* Weather Info */}
+            {/* Weather Info - Compact version for collapsed header */}
             {weather_data && (
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: '0.35rem', 
+                gap: '0.25rem', 
                 flexShrink: 0,
-                padding: '0.2rem 0.5rem',
+                padding: '0.15rem 0.4rem',
                 backgroundColor: time_shade > 0.5 ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.16)',
                 borderRadius: '6px',
                 backdropFilter: 'blur(10px)',
                 transition: 'background-color 0.4s ease-in-out',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <img src="/tem-icon.png" alt="Temp" className="weather-icon-svg" />
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none' }}>
-                    {Math.round(weather_data.temperature)}°C
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                  <img src="/tem-icon.png" alt="Temp" style={{ width: '14px', height: '14px', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.65rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none', whiteSpace: 'nowrap' }}>
+                    {Math.round(weather_data.temperature)}°
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <img src="/rain-icon.png" alt="Humidity" className="weather-icon-svg" />
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                  <img src="/rain-icon.png" alt="Humidity" style={{ width: '14px', height: '14px', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.65rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none', whiteSpace: 'nowrap' }}>
                     {weather_data.humidity}%
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
                   <img
                     src="/aqi-icon.png"
                     alt="AQI"
-                    width={24}
-                    height={24}
                     style={{
+                      width: '16px',
+                      height: '16px',
                       display: 'block',
                       objectFit: 'contain',
                       imageRendering: 'auto',
                       filter: time_shade > 0.5 ? 'brightness(1.2)' : 'none',
                       transition: 'filter 0.4s ease-in-out',
+                      flexShrink: 0,
                     }}
                   />
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '600', color: get_text_color(), transition: 'color 0.4s ease-in-out', textShadow: 'none', whiteSpace: 'nowrap' }}>
                     {weather_data.air_quality}
                   </span>
                 </div>
@@ -420,7 +422,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                     left: `${dropdown_position.left}px`,
                     zIndex: 2147483647,
                     backgroundColor: 'white',
-                    border: '2px solid #8B5CF6',
+                    border: '2px solid #6b7280',
                     borderRadius: '12px',
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                     padding: '0.25rem 0',
@@ -464,10 +466,10 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
                           border: 'none',
-                          background: lang.code === current_language ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+                          background: lang.code === current_language ? 'rgba(107, 114, 128, 0.15)' : 'transparent',
                           width: '100%',
                           textAlign: 'left',
-                          color: lang.code === current_language ? '#8B5CF6' : '#333',
+                          color: lang.code === current_language ? '#6b7280' : '#333',
                           fontSize: '0.8rem',
                           fontWeight: lang.code === current_language ? '600' : '500',
                           whiteSpace: 'nowrap',
@@ -480,8 +482,8 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                         }}
                         onMouseEnter={(e) => {
                           if (lang.code !== current_language) {
-                            e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
-                            e.currentTarget.style.color = '#8B5CF6';
+                            e.currentTarget.style.background = 'rgba(107, 114, 128, 0.1)';
+                            e.currentTarget.style.color = '#6b7280';
                           }
                         }}
                         onMouseLeave={(e) => {
@@ -586,6 +588,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
           </div>
         </div>
       </header>
+      </>
     );
   }
 
@@ -652,7 +655,7 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                   left: `${dropdown_position.left}px`,
                   zIndex: 2147483647,
                   backgroundColor: 'white',
-                  border: '2px solid #8B5CF6',
+                  border: '2px solid #6b7280',
                   borderRadius: '12px',
                   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                   padding: '0.25rem 0',
@@ -696,10 +699,10 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         border: 'none',
-                        background: lang.code === current_language ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+                        background: lang.code === current_language ? 'rgba(107, 114, 128, 0.15)' : 'transparent',
                         width: '100%',
                         textAlign: 'left',
-                        color: lang.code === current_language ? '#8B5CF6' : '#333',
+                        color: lang.code === current_language ? '#6b7280' : '#333',
                         fontSize: '0.8rem',
                         fontWeight: lang.code === current_language ? '600' : '500',
                         whiteSpace: 'nowrap',
@@ -712,8 +715,8 @@ export const Header: React.FC<HeaderProps> = ({ license_plate, on_change_plate, 
                       }}
                       onMouseEnter={(e) => {
                         if (lang.code !== current_language) {
-                          e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
-                          e.currentTarget.style.color = '#8B5CF6';
+                          e.currentTarget.style.background = 'rgba(107, 114, 128, 0.1)';
+                          e.currentTarget.style.color = '#6b7280';
                         }
                       }}
                       onMouseLeave={(e) => {

@@ -8,6 +8,9 @@
   "welcome_to_smart_parking": "Welcome to Parkiraj.info",
   "enter_license_plate_to_continue": "Enter your license plate to continue",
   "enter_license_plate_placeholder": "Enter license plate (e.g., ABC-123)",
+  "enter_password_placeholder": "Enter password (min 4 characters)",
+  "password_min_length": "Password must be at least 4 characters",
+  "password_max_length": "Password must be less than 50 characters",
   "continue": "Continue",
   "setting": "Setting",
   "change_plate": "Change Plate",
@@ -141,5 +144,8 @@
   "occupied_spaces": "Occupied Spaces",
   "showing_all_spaces": "Showing all {count} spaces",
   "found_spaces_in_street": "Found {count} spaces in {street}",
-  "show_parking_spaces_in_street": "Show parking spaces in {street}"
+  "show_parking_spaces_in_street": "Show parking spaces in {street}",
+  "wallet_required": "Wallet Connection Required",
+  "connect_wallet_to_park": "Please connect a TON wallet to reserve and park",
+  "connect_now": "Connect Now"
 }

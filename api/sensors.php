@@ -68,7 +68,12 @@ try {
                 http_response_code(201);
                 echo json_encode($result);
             } else {
-                http_response_code(500);
+                // Check if it's a duplicate error (409 Conflict)
+                if (isset($result['error']) && (strpos($result['error'], 'already exists') !== false || strpos($result['error'], 'UNIQUE constraint') !== false)) {
+                    http_response_code(409); // Conflict
+                } else {
+                    http_response_code(500);
+                }
                 echo json_encode($result);
             }
             break;

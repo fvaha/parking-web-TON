@@ -9,8 +9,12 @@ class LangCommand {
         $user_id = $message->getFrom()->getId();
         $text = $message->getText();
         
+        error_log("LangCommand: Received text: '{$text}'");
+        
         // Parse: /lang en ili /lang sr
         $parts = explode(' ', $text, 2);
+        error_log("LangCommand: Parts count: " . count($parts) . ", parts: " . json_encode($parts));
+        
         if (count($parts) >= 2) {
             $new_lang = trim($parts[1]);
             if (in_array($new_lang, ['en', 'sr', 'de', 'fr', 'ar'])) {
@@ -41,17 +45,38 @@ class LangCommand {
                     return;
                 }
             } else {
-                // Invalid language code - use simple English message
+                // Invalid language code - show translated error message
+                $error_texts = [
+                    'en' => "❌ Invalid language code. Available: en, sr, de, fr, ar",
+                    'sr' => "❌ Nevažeći kod jezika. Dostupno: en, sr, de, fr, ar",
+                    'de' => "❌ Ungültiger Sprachcode. Verfügbar: en, sr, de, fr, ar",
+                    'fr' => "❌ Code de langue invalide. Disponible: en, sr, de, fr, ar",
+                    'ar' => "❌ رمز لغة غير صالح. متاح: en, sr, de, fr, ar"
+                ];
+                $user = $message->getFrom();
+                $lang = LanguageService::getLanguage($user);
                 $bot->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => "❌ Invalid language code. Available: en, sr, de, fr, ar"
+                    'text' => $error_texts[$lang] ?? $error_texts['en']
                 ]);
                 return;
             }
         }
         
+        // Get user language for back button text
+        $user = $message->getFrom();
+        $lang = LanguageService::getLanguage($user);
+        
         // Show language selection keyboard
         // Use simple multilingual message that doesn't require language detection
+        $back_texts = [
+            'en' => '🏠 Back to Menu',
+            'sr' => '🏠 Nazad na Meni',
+            'de' => '🏠 Zurück zum Menü',
+            'fr' => '🏠 Retour au Menu',
+            'ar' => '🏠 العودة إلى القائمة'
+        ];
+        
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -64,6 +89,9 @@ class LangCommand {
                 ],
                 [
                     ['text' => '🇸🇦 العربية', 'callback_data' => 'lang_ar']
+                ],
+                [
+                    ['text' => $back_texts[$lang] ?? $back_texts['en'], 'callback_data' => 'menu_start']
                 ]
             ]
         ];

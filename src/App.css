@@ -129,12 +129,12 @@ body .admin-login-container {
 }
 
 .complete-session-btn {
-  background: #3b82f6;
+  background: #4b5563;
   color: white;
 }
 
 .complete-session-btn:hover {
-  background: #2563eb;
+  background: #374151;
   transform: translateY(-1px);
 }
 
@@ -159,7 +159,7 @@ body .admin-login-container {
   left: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 25%, #60a5fa 50%, #93c5fd 75%, #dbeafe 100%) !important;
+  background: linear-gradient(135deg, #1f2937 0%, #4b5563 25%, #6b7280 50%, #9ca3af 75%, #d1d5db 100%) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -196,7 +196,7 @@ body .admin-login-container {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: linear-gradient(90deg, #6b7280 0%, #4b5563 50%, #9ca3af 100%);
   border-radius: 24px 24px 0 0;
 }
 
@@ -272,10 +272,10 @@ body .admin-login-container {
 
 .license-plate-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #6b7280;
   box-shadow: 
-    0 0 0 4px rgba(102, 126, 234, 0.1),
-    0 4px 12px rgba(102, 126, 234, 0.15);
+    0 0 0 4px rgba(107, 114, 128, 0.1),
+    0 4px 12px rgba(107, 114, 128, 0.15);
 }
 
 .license-plate-input::placeholder {
@@ -292,7 +292,7 @@ body .admin-login-container {
 }
 
 .license-plate-submit {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
   color: white;
   border: none;
   padding: 1.25rem 2.5rem;
@@ -306,7 +306,7 @@ body .admin-login-container {
   min-height: 56px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3);
 }
 
 .license-plate-submit::before {
@@ -325,9 +325,9 @@ body .admin-login-container {
 }
 
 .license-plate-submit:hover {
-  background: linear-gradient(135deg, #5a6fd8 0%, #6a5acd 100%);
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
   transform: translateY(-3px);
-  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 12px 35px rgba(107, 114, 128, 0.4);
 }
 
 .license-plate-submit:active {
@@ -335,7 +335,7 @@ body .admin-login-container {
 }
 
 .license-plate-submit:disabled {
-  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
   cursor: not-allowed;
   transform: none;
   box-shadow: 0 4px 12px rgba(148, 163, 184, 0.3);
@@ -553,15 +553,15 @@ body .admin-login-container {
 }
 
 .reservation-btn.primary {
-  background: #667eea;
+  background: #6b7280;
   color: white;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
 }
 
 .reservation-btn.primary:hover {
-  background: #5a6fd8;
+  background: #4b5563;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
 }
 
 .reservation-btn.secondary {
@@ -889,8 +889,8 @@ body .admin-login-container {
 }
 
 .parking-status-item.location {
-  border-color: #3498db;
-  background: #f0f8ff;
+  border-color: #6b7280;
+  background: #f3f4f6;
 }
 
 .status-vacant {
@@ -915,7 +915,7 @@ body .admin-login-container {
   width: 20px;
   height: 20px;
   border: 3px solid #f3f3f3;
-  border-top: 3px solid #667eea;
+  border-top: 3px solid #6b7280;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1051,15 +1051,15 @@ body .admin-login-container {
 }
 
 .custom-alert-btn.primary {
-  background: #667eea;
+  background: #6b7280;
   color: white;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
 }
 
 .custom-alert-btn.primary:hover {
-  background: #5a6fd8;
+  background: #4b5563;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
 }
 
 .custom-alert-btn.secondary {
@@ -1159,12 +1159,12 @@ body .admin-login-container {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #6b7280, #4b5563);
   color: white;
   padding: 1.5rem;
   border-radius: 12px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 20px rgba(107, 114, 128, 0.3);
   overflow: hidden;
 }
 
@@ -1370,8 +1370,8 @@ body .admin-login-container {
 }
 
 .status.active {
-  background: #e3f2fd;
-  color: #1565c0;
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .status.inactive {
@@ -1556,7 +1556,7 @@ body .admin-login-container {
 }
 
 .legend-indicator.user-location {
-  background-color: #4285F4;
+  background-color: #6b7280;
   border-radius: 50%;
 }
 
@@ -1650,8 +1650,8 @@ body .admin-login-container {
 
 .street-search-input:focus {
   outline: none;
-  border-color: #3B82F6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #6b7280;
+  box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
 }
 
 .street-search-info {
@@ -1703,14 +1703,14 @@ body .admin-login-container {
 }
 
 .street-tag.active {
-  background: #3B82F6;
-  border-color: #3B82F6;
+  background: #6b7280;
+  border-color: #6b7280;
   color: white;
 }
 
 .street-tag.active:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #4b5563;
+  border-color: #4b5563;
 }
 
 @media (max-width: 768px) {
@@ -1839,7 +1839,7 @@ body .admin-login-container {
 }
 
 .sensor-actions .edit-btn {
-  background: #3B82F6;
+  background: #6b7280;
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -1850,7 +1850,7 @@ body .admin-login-container {
 }
 
 .sensor-actions .edit-btn:hover {
-  background: #2563eb;
+  background: #4b5563;
 }
 
 .sensor-actions .delete-btn {
@@ -1958,8 +1958,8 @@ body .admin-login-container {
 
 .form-group input:focus {
   outline: none;
-  border-color: #3B82F6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #6b7280;
+  box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
 }
 
 .coordinates-inputs {
@@ -2016,7 +2016,7 @@ body .admin-login-container {
   width: 40px;
   height: 40px;
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #3B82F6;
+  border-top: 4px solid #6b7280;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -2179,7 +2179,7 @@ body .language-menu-portal,
   min-height: auto !important;
   height: fit-content !important;
   padding: 2rem 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
   flex: none;
   align-self: flex-start;
 }
@@ -2277,7 +2277,7 @@ body .language-menu-portal,
 
 .admin-login-form input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #6b7280;
 }
 
 .admin-login-form .password-toggle {
@@ -2287,7 +2287,7 @@ body .language-menu-portal,
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #667eea;
+  color: #6b7280;
   cursor: pointer;
   font-size: 14px;
   padding: 4px 8px;
@@ -2348,7 +2348,7 @@ body .language-menu-portal,
   z-index: 10 !important;
   background: none !important;
   border: none !important;
-  color: #667eea !important;
+  color: #6b7280 !important;
   cursor: pointer !important;
   font-size: 14px !important;
   padding: 4px 8px !important;
@@ -2371,7 +2371,7 @@ body .language-menu-portal,
 .login-button {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -2530,7 +2530,7 @@ body .language-menu-portal,
 }
 
 .user-actions .edit-btn {
-  background: #3b82f6;
+  background: #6b7280;
   color: white;
   border: none;
   padding: 6px 12px;
@@ -2623,7 +2623,7 @@ body .language-menu-portal,
 
 .action-badge.logout {
   background: #f3e8ff;
-  color: #7c3aed;
+  color: #4b5563;
 }
 
 .log-table {
@@ -2697,8 +2697,8 @@ body .language-menu-portal,
 .admin-user-form-modal input:focus,
 .admin-user-form-modal select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #6b7280;
+  box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
 }
 
 .admin-user-form-modal input:disabled {
@@ -2808,7 +2808,7 @@ body .language-menu-portal,
   z-index: 9999 !important;
   background: none !important;
   border: none !important;
-  color: #667eea !important;
+  color: #6b7280 !important;
   cursor: pointer !important;
   font-size: 14px !important;
   padding: 4px 8px !important;

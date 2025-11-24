@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_TON_RECIPIENT_ADDRESS?: string;
+  readonly VITE_TON_API_KEY?: string;
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
   readonly VITE_WEATHER_API_KEY?: string;
   readonly VITE_ADMIN_USERNAME?: string;
@@ -16,6 +17,7 @@ interface ImportMeta {
 declare module 'vite' {
   interface ImportMetaEnv {
     readonly VITE_TON_RECIPIENT_ADDRESS?: string;
+    readonly VITE_TON_API_KEY?: string;
     readonly VITE_GOOGLE_MAPS_API_KEY?: string;
     readonly VITE_WEATHER_API_KEY?: string;
     readonly VITE_ADMIN_USERNAME?: string;

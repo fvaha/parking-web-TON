@@ -35,12 +35,16 @@ interface ParkingMapProps {
   license_plate: string;
   on_reserve_space: (space: ParkingSpace) => void;
   on_close_reservation_modal: () => void;
+  user_location: { lat: number; lng: number };
+  on_request_location?: () => void;
 }
 
 export const ParkingMap: React.FC<ParkingMapProps> = ({ 
   parking_spaces, 
   sensors, 
-  on_space_click
+  on_space_click,
+  user_location: user_location_prop,
+  on_request_location
 }) => {
   const map_ref = useRef<HTMLDivElement>(null);
   const map_initialized_ref = useRef<boolean>(false);
@@ -53,6 +57,7 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
   const is_processing_ref = useRef<boolean>(false); // Ref to prevent concurrent processing
   const on_space_click_ref = useRef(on_space_click); // Ref to store callback function
   const show_routing_options_ref = useRef<any>(null); // Ref to store routing function
+  const user_location_marker_ref = useRef<any>(null); // Ref to track user location marker
   const [routing_control, set_routing_control] = useState<any>(null); // L.Routing.Control
   const [map_style, set_map_style] = useState<MapStyle>('light');
   const [show_map_menu, set_show_map_menu] = useState<boolean>(false);
@@ -63,11 +68,22 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
   const [route_alternatives, set_route_alternatives] = useState<any[]>([]);
 
   const [route_lines, set_route_lines] = useState<any[]>([]); // L.Polyline[]
-  const [user_location] = useState<L.LatLng>(
-    L.latLng(MAPS_CONFIG.USER_LOCATION.lat, MAPS_CONFIG.USER_LOCATION.lng)
+  const [user_location, set_user_location] = useState<L.LatLng>(
+    L.latLng(user_location_prop.lat, user_location_prop.lng)
   );
   
   const language_service = LanguageService.getInstance();
+
+  // Update user location when prop changes
+  useEffect(() => {
+    const new_location = L.latLng(user_location_prop.lat, user_location_prop.lng);
+    set_user_location(new_location);
+    
+    // Update user location marker if it exists
+    if (user_location_marker_ref.current && map) {
+      user_location_marker_ref.current.setLatLng(new_location);
+    }
+  }, [user_location_prop.lat, user_location_prop.lng, map]);
 
   // Update callback refs when they change
   useEffect(() => {
@@ -176,9 +192,9 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
             lineOptions: {
               styles: [
                 { color: '#10B981', opacity: 0.8, weight: 6 }, // Primary route (green - fastest)
-                { color: '#3B82F6', opacity: 0.6, weight: 4 }, // Alternative 1 (blue - medium)
+                { color: '#6b7280', opacity: 0.6, weight: 4 }, // Alternative 1 (gray - medium)
                 { color: '#EF4444', opacity: 0.6, weight: 4 }, // Alternative 2 (red - longest)
-                { color: '#8B5CF6', opacity: 0.6, weight: 4 }  // Alternative 3 (purple - longest)
+                { color: '#4b5563', opacity: 0.6, weight: 4 }  // Alternative 3 (gray - longest)
               ],
               extendToWaypoints: false,
               missingRouteTolerance: 0
@@ -194,9 +210,9 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
             lineOptions: {
               styles: [
                 { color: '#10B981', opacity: 0.8, weight: 6 },
-                { color: '#3B82F6', opacity: 0.6, weight: 4 },
+                { color: '#6b7280', opacity: 0.6, weight: 4 },
                 { color: '#EF4444', opacity: 0.6, weight: 4 },
-                { color: '#8B5CF6', opacity: 0.6, weight: 4 }
+                { color: '#4b5563', opacity: 0.6, weight: 4 }
               ],
               extendToWaypoints: false,
               missingRouteTolerance: 0
@@ -372,8 +388,8 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
           // Selected route: green
           line.setStyle({ color: '#10B981', weight: 6, opacity: 0.8 });
         } else {
-          // Other routes: blue
-          line.setStyle({ color: '#3B82F6', weight: 4, opacity: 0.6 });
+          // Other routes: gray
+          line.setStyle({ color: '#6b7280', weight: 4, opacity: 0.6 });
         }
       });
     }
@@ -546,6 +562,17 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
 
         set_map(new_map);
 
+        // Request geolocation on first map interaction (click or drag)
+        let location_requested = false;
+        const requestLocationOnInteraction = () => {
+          if (!location_requested && on_request_location) {
+            location_requested = true;
+            on_request_location();
+          }
+        };
+        new_map.on('click', requestLocationOnInteraction);
+        new_map.on('dragstart', requestLocationOnInteraction);
+
         // CRITICAL: Invalidate map size multiple times to ensure proper rendering
         // Leaflet needs this when container dimensions change or are not immediately available
         const invalidateMap = () => {
@@ -596,15 +623,16 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
         };
         window.addEventListener('resize', handleResize);
 
-        // Add user location marker since we have hardcoded coordinates
-        L.marker(user_location, {
+        // Add user location marker
+        const user_marker = L.marker(user_location, {
           icon: L.divIcon({
             className: 'user-location-marker',
-            html: '<div style="background-color: #4285F4; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+            html: '<div style="background-color: #6b7280; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
             iconSize: [20, 20],
             iconAnchor: [10, 10]
           })
         }).addTo(new_map).bindPopup('Your Location');
+        user_location_marker_ref.current = user_marker;
 
         // Return cleanup function from initializeMap
         return () => {
@@ -963,8 +991,8 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
                   padding: '0.6rem 1rem',
                   border: 'none',
                   borderRadius: '8px',
-                  backgroundColor: map_style === style ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
-                  color: map_style === style ? '#2563eb' : '#374151',
+                  backgroundColor: map_style === style ? 'rgba(107, 114, 128, 0.1)' : 'transparent',
+                  color: map_style === style ? '#6b7280' : '#374151',
                   cursor: 'pointer',
                   fontSize: '0.9rem',
                   fontWeight: map_style === style ? '600' : '500',
@@ -988,7 +1016,7 @@ export const ParkingMap: React.FC<ParkingMapProps> = ({
                 </span>
                 <span style={{ textTransform: 'capitalize' }}>{TILE_LAYERS[style].name}</span>
                 {map_style === style && (
-                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#2563eb' }}>✓</span>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#6b7280' }}>✓</span>
                 )}
               </button>
             ))}

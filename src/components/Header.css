@@ -471,7 +471,7 @@ html .language-menu-portal {
   left: -100% !important;
   width: 100% !important;
   height: 100% !important;
-  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.05), transparent) !important;
+  background: linear-gradient(90deg, transparent, rgba(107, 114, 128, 0.05), transparent) !important;
   transition: left 0.3s ease !important;
 }
 
@@ -480,16 +480,16 @@ html .language-menu-portal {
 }
 
 .language-option:hover {
-  background: rgba(139, 92, 246, 0.1) !important;
-  color: #8B5CF6 !important;
+  background: rgba(107, 114, 128, 0.1) !important;
+  color: #6b7280 !important;
   transform: translateX(4px) !important;
 }
 
 .language-option.active {
-  background: rgba(139, 92, 246, 0.15) !important;
-  color: #8B5CF6 !important;
+  background: rgba(107, 114, 128, 0.15) !important;
+  color: #6b7280 !important;
   font-weight: 600 !important;
-  box-shadow: inset 0 1px 0 rgba(139, 92, 246, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(107, 114, 128, 0.1) !important;
 }
 
 .language-option .flag {

@@ -4,6 +4,7 @@ const DEVICE_ID_KEY = 'parking_device_id';
 const LICENSE_PLATE_KEY = 'parking_license_plate';
 const USER_SESSION_KEY = 'parking_user_session';
 const ACTIVE_SESSION_KEY = 'parking_active_session';
+const SAVED_WALLET_KEY = 'parking_saved_wallet_for_auto_connect';
 
 export class StorageService {
   private static instance: StorageService;
@@ -91,5 +92,18 @@ export class StorageService {
   initialize_mock_data(): void {
     // Mock data initialization removed - will use real database instead
     console.log('Mock data initialization removed - using real database');
+  }
+
+  // Wallet auto-connection methods
+  set_saved_wallet_for_auto_connect(wallet_address: string): void {
+    localStorage.setItem(SAVED_WALLET_KEY, wallet_address);
+  }
+
+  get_saved_wallet_for_auto_connect(): string | null {
+    return localStorage.getItem(SAVED_WALLET_KEY);
+  }
+
+  clear_saved_wallet_for_auto_connect(): void {
+    localStorage.removeItem(SAVED_WALLET_KEY);
   }
 }

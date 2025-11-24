@@ -40,6 +40,62 @@ try {
             // GET is public (no API key required) - used by web app and bot
             // Get all parking spaces
             $parking_spaces = $db->getParkingSpaces();
+            
+            // Attach zone info for each space - optimized to use single query
+            if (!empty($parking_spaces)) {
+                // Get all space IDs
+                $space_ids = array_map(function($space) {
+                    return (int)$space['id'];
+                }, $parking_spaces);
+                
+                // Get all zones for these spaces in one query
+                $space_ids_string = implode(',', $space_ids);
+                $zones_query = "
+                    SELECT 
+                        zps.parking_space_id,
+                        z.id,
+                        z.name,
+                        z.color,
+                        z.hourly_rate,
+                        z.daily_rate,
+                        z.is_premium,
+                        z.max_duration_hours
+                    FROM zone_parking_spaces zps
+                    JOIN parking_zones z ON zps.zone_id = z.id
+                    WHERE zps.parking_space_id IN ({$space_ids_string})
+                ";
+                
+                $zones_result = $db->query($zones_query);
+                $zones_map = [];
+                if ($zones_result) {
+                    while ($zone_row = $zones_result->fetchArray(SQLITE3_ASSOC)) {
+                        $space_id = (int)$zone_row['parking_space_id'];
+                        if (!isset($zones_map[$space_id])) {
+                            $zones_map[$space_id] = [
+                                'id' => (string)$zone_row['id'],
+                                'name' => $zone_row['name'],
+                                'color' => $zone_row['color'],
+                                'hourly_rate' => isset($zone_row['hourly_rate']) ? (float)$zone_row['hourly_rate'] : null,
+                                'daily_rate' => isset($zone_row['daily_rate']) ? (float)$zone_row['daily_rate'] : null,
+                                'is_premium' => ($zone_row['is_premium'] == 1 || $zone_row['is_premium'] === true || $zone_row['is_premium'] === '1'),
+                                'max_duration_hours' => isset($zone_row['max_duration_hours']) ? (int)$zone_row['max_duration_hours'] : null
+                            ];
+                        }
+                    }
+                }
+                
+                // Attach zones to spaces
+                foreach ($parking_spaces as &$space) {
+                    $space_id = (int)$space['id'];
+                    if (isset($zones_map[$space_id])) {
+                        $space['zone'] = $zones_map[$space_id];
+                    } else {
+                        $space['zone'] = null;
+                    }
+                }
+                unset($space); // Break reference
+            }
+            
             echo json_encode([
                 'success' => true,
                 'data' => $parking_spaces
@@ -170,7 +226,74 @@ try {
                 $end_time = null;
             }
             
-            $result = $db->updateParkingSpaceStatus($space_id, $input['status'], $license_plate, $reservation_time, $occupied_since, $payment_tx_hash);
+            // Security check: If reserving, verify that space is currently vacant
+            if ($input['status'] === 'reserved') {
+                // Get current parking space to check status
+                $parking_spaces = $db->getParkingSpaces();
+                $current_space = null;
+                foreach ($parking_spaces as $ps) {
+                    if ($ps['id'] == $space_id) {
+                        $current_space = $ps;
+                        break;
+                    }
+                }
+                
+                if (!$current_space) {
+                    http_response_code(404);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Parking space not found.'
+                    ]);
+                    exit();
+                }
+                
+                // Check if space is already reserved or occupied
+                if ($current_space['status'] !== 'vacant') {
+                    http_response_code(409);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Parking space is already ' . $current_space['status'] . '. Cannot reserve.',
+                        'current_status' => $current_space['status']
+                    ]);
+                    exit();
+                }
+            }
+            
+            // Security check: If changing status to 'vacant', verify that the user owns the reservation
+            if ($input['status'] === 'vacant') {
+                // Get current parking space to check license_plate
+                $parking_spaces = $db->getParkingSpaces();
+                $current_space = null;
+                foreach ($parking_spaces as $ps) {
+                    if ($ps['id'] == $space_id) {
+                        $current_space = $ps;
+                        break;
+                    }
+                }
+                
+                if ($current_space && !empty($current_space['license_plate'])) {
+                    // Require license_plate to be provided and it must match the current reservation
+                    if ($license_plate === null) {
+                        http_response_code(400);
+                        echo json_encode([
+                            'success' => false,
+                            'error' => 'License plate is required to complete a session.'
+                        ]);
+                        exit();
+                    }
+                    
+                    if ($license_plate !== $current_space['license_plate']) {
+                        http_response_code(403);
+                        echo json_encode([
+                            'success' => false,
+                            'error' => 'You can only complete sessions for your own license plate.'
+                        ]);
+                        exit();
+                    }
+                }
+            }
+            
+            $result = $db->updateParkingSpaceStatus($space_id, $input['status'], $license_plate, $reservation_time, $occupied_since, $payment_tx_hash, $input['status'] === 'reserved' ? 'vacant' : null);
             
             if ($result['success']) {
                 // If reservation was created, also create reservation record with end_time
@@ -186,21 +309,77 @@ try {
                     $db->createReservation($reservation_data);
                 }
                 
-                // If reservation was created, queue notifications
+                // If reservation was created, send notification with navigation
                 if ($input['status'] === 'reserved' && $license_plate) {
                     // Check if user has Telegram linked
                     $telegram_user = $db->getTelegramUserByLicensePlate($license_plate);
                     if ($telegram_user) {
-                        // Queue reservation confirmation
+                        // Get space coordinates for navigation
+                        $parking_spaces = $db->getParkingSpaces();
+                        $space = null;
+                        foreach ($parking_spaces as $ps) {
+                            if ($ps['id'] == $space_id) {
+                                $space = $ps;
+                                break;
+                            }
+                        }
                         $zone = $db->getZoneBySpaceId($space_id);
                         $zone_name = $zone ? $zone['name'] : 'Unknown';
+                        
+                        // Get user language
+                        $lang = $telegram_user['language'] ?? 'en';
+                        
+                        // Load config and LanguageService for translations
+                        if (!defined('TELEGRAM_BOT_TOKEN')) {
+                            require_once __DIR__ . '/../telegram-bot/config.php';
+                        }
+                        require_once __DIR__ . '/../telegram-bot/services/LanguageService.php';
+                        $navigate_text = \TelegramBot\Services\LanguageService::t('navigate', $lang);
+                        
+                        // Create message
                         $message = "✅ Reservation confirmed!\n\nSpace #{$space_id}\nZone: {$zone_name}\nLicense Plate: {$license_plate}\nDuration: {$duration_hours} hour" . ($duration_hours > 1 ? 's' : '');
-                        $db->queueNotification(
-                            $telegram_user['telegram_user_id'],
-                            'reservation_ending',
-                            $message,
-                            ['parking_space_id' => $space_id]
-                        );
+                        
+                        // Create navigation keyboard if coordinates are available
+                        $keyboard = null;
+                        if ($space && isset($space['coordinates']) && isset($space['coordinates']['lat']) && isset($space['coordinates']['lng'])) {
+                            $lat = $space['coordinates']['lat'];
+                            $lng = $space['coordinates']['lng'];
+                            if ($lat != 0.0 && $lng != 0.0) {
+                                // Create Google Maps URL - will open in app if installed, otherwise in browser
+                                $maps_url = "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}";
+                                $keyboard = [
+                                    'inline_keyboard' => [
+                                        [
+                                            [
+                                                'text' => $navigate_text,
+                                                'url' => $maps_url
+                                            ]
+                                        ]
+                                    ]
+                                ];
+                            }
+                        }
+                        
+                        // Send message directly via Telegram API
+                        if (defined('TELEGRAM_BOT_TOKEN') && !empty(TELEGRAM_BOT_TOKEN)) {
+                            $telegram_url = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN . "/sendMessage";
+                            $message_data = [
+                                'chat_id' => $telegram_user['chat_id'],
+                                'text' => $message,
+                                'parse_mode' => 'Markdown'
+                            ];
+                            
+                            if ($keyboard) {
+                                $message_data['reply_markup'] = json_encode($keyboard);
+                            }
+                            
+                            $ch = curl_init($telegram_url);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($ch, CURLOPT_POST, true);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($message_data));
+                            curl_exec($ch);
+                            curl_close($ch);
+                        }
                         
                         // Schedule ending warning (10 minutes before)
                         if ($reservation_time && $end_time) {
@@ -259,7 +438,12 @@ try {
                 
                 echo json_encode($result);
             } else {
-                http_response_code(404);
+                // Check if error is due to status mismatch (space already reserved/occupied)
+                if (isset($result['error']) && strpos($result['error'], 'status has changed') !== false) {
+                    http_response_code(409); // Conflict - space status changed
+                } else {
+                    http_response_code(404);
+                }
                 echo json_encode($result);
             }
             break;

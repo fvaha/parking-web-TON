@@ -21,7 +21,7 @@
 }
 
 .weather-demo a {
-  color: #667eea;
+  color: #6b7280;
   text-decoration: none;
   font-weight: 600;
 }
@@ -65,18 +65,18 @@
 .demo-weather-icon-placeholder {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 15px rgba(107, 114, 128, 0.3);
   transition: all 0.3s ease;
 }
 
 .demo-weather-icon-placeholder:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
 }
 
 .weather-type-text {

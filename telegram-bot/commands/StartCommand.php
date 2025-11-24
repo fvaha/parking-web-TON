@@ -52,71 +52,146 @@ class StartCommand {
         $text .= $separator . "\n\n";
         
         $text .= LanguageService::t('welcome', $lang);
-        $text .= "\n" . ($commands_title[$lang] ?? $commands_title['en']) . "\n\n";
-        $text .= "🔹 " . LanguageService::t('cmd_start', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_link', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_status', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_spaces', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_weather', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_preferences', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_reserve', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_help', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_app', $lang);
-        $text .= "🔹 " . LanguageService::t('cmd_lang', $lang);
         
-        $text .= "\n" . LanguageService::t('link_account', $lang);
-        $text .= LanguageService::t('link_format', $lang);
-        $text .= LanguageService::t('link_format2', $lang);
-        $text .= LanguageService::t('link_format3', $lang);
-        
-        $text .= "\n" . $separator . "\n";
-        $text .= ($tip_texts[$lang] ?? $tip_texts['en']) . "\n";
-        $text .= $separator;
-        
-        // Create inline keyboard with button to open web app
-        $keyboard_texts = [
-            'en' => ['Open Web App', 'Link Account'],
-            'sr' => ['Otvori Web Aplikaciju', 'Poveži Nalog'],
-            'de' => ['Web-App öffnen', 'Konto verknüpfen'],
-            'fr' => ["Ouvrir l'App Web", 'Lier le Compte'],
-            'ar' => ['فتح التطبيق الإلكتروني', 'ربط الحساب']
+        // Create modern inline keyboard menu (like SUCH bot style)
+        $menu_texts = [
+            'en' => [
+                'reserve' => '✅ Reserve Space',
+                'spaces' => '🅿️ Available Spaces',
+                'status' => '📋 My Reservations',
+                'link' => '🔗 Link Account',
+                'wallet' => '💼 Wallet',
+                'preferences' => '⚙️ Preferences',
+                'weather' => '☁️ Weather',
+                'web_app' => '🌐 Web App',
+                'help' => '❓ Help',
+                'lang' => '🌍 Language'
+            ],
+            'sr' => [
+                'reserve' => '✅ Rezerviši Mesto',
+                'spaces' => '🅿️ Dostupna Mesta',
+                'status' => '📋 Moje Rezervacije',
+                'link' => '🔗 Poveži Nalog',
+                'wallet' => '💼 Novčanik',
+                'preferences' => '⚙️ Postavke',
+                'weather' => '☁️ Vreme',
+                'web_app' => '🌐 Web Aplikacija',
+                'help' => '❓ Pomoć',
+                'lang' => '🌍 Jezik'
+            ],
+            'de' => [
+                'reserve' => '✅ Platz Reservieren',
+                'spaces' => '🅿️ Verfügbare Plätze',
+                'status' => '📋 Meine Reservierungen',
+                'link' => '🔗 Konto Verknüpfen',
+                'wallet' => '💼 Geldbörse',
+                'preferences' => '⚙️ Einstellungen',
+                'weather' => '☁️ Wetter',
+                'web_app' => '🌐 Web-App',
+                'help' => '❓ Hilfe',
+                'lang' => '🌍 Sprache'
+            ],
+            'fr' => [
+                'reserve' => '✅ Réserver Place',
+                'spaces' => '🅿️ Places Disponibles',
+                'status' => '📋 Mes Réservations',
+                'link' => '🔗 Lier le Compte',
+                'wallet' => '💼 Portefeuille',
+                'preferences' => '⚙️ Préférences',
+                'weather' => '☁️ Météo',
+                'web_app' => '🌐 App Web',
+                'help' => '❓ Aide',
+                'lang' => '🌍 Langue'
+            ],
+            'ar' => [
+                'reserve' => '✅ حجز مكان',
+                'spaces' => '🅿️ الأماكن المتاحة',
+                'status' => '📋 حجوزاتي',
+                'link' => '🔗 ربط الحساب',
+                'wallet' => '💼 المحفظة',
+                'preferences' => '⚙️ التفضيلات',
+                'weather' => '☁️ الطقس',
+                'web_app' => '🌐 التطبيق الإلكتروني',
+                'help' => '❓ المساعدة',
+                'lang' => '🌍 اللغة'
+            ]
         ];
         
+        $menu = $menu_texts[$lang] ?? $menu_texts['en'];
+        
+        // Create inline keyboard with organized menu buttons
         $keyboard = [
             'inline_keyboard' => [
+                // First row: Main actions
                 [
                     [
-                        'text' => '🌐 ' . $keyboard_texts[$lang][0],
+                        'text' => $menu['reserve'],
+                        'callback_data' => 'menu_reserve'
+                    ],
+                    [
+                        'text' => $menu['spaces'],
+                        'callback_data' => 'menu_spaces'
+                    ]
+                ],
+                // Second row: Status and Account
+                [
+                    [
+                        'text' => $menu['status'],
+                        'callback_data' => 'menu_status'
+                    ],
+                    [
+                        'text' => $menu['link'],
+                        'callback_data' => 'link_account'
+                    ]
+                ],
+                // Third row: Wallet and Preferences
+                [
+                    [
+                        'text' => $menu['wallet'],
+                        'callback_data' => 'menu_wallet'
+                    ],
+                    [
+                        'text' => $menu['preferences'],
+                        'callback_data' => 'menu_preferences'
+                    ]
+                ],
+                // Fourth row: Weather and Web App
+                [
+                    [
+                        'text' => $menu['weather'],
+                        'callback_data' => 'menu_weather'
+                    ],
+                    [
+                        'text' => $menu['web_app'],
                         'web_app' => ['url' => $web_app_url]
                     ]
                 ],
+                // Fifth row: Help and Language
                 [
                     [
-                        'text' => '🔗 ' . $keyboard_texts[$lang][1],
-                        'callback_data' => 'link_account'
+                        'text' => $menu['help'],
+                        'callback_data' => 'menu_help'
+                    ],
+                    [
+                        'text' => $menu['lang'],
+                        'callback_data' => 'menu_lang'
                     ]
                 ]
             ]
         ];
         
-        // Get reply keyboard with commands
-        $reply_keyboard = KeyboardService::getCommandsKeyboard($lang);
+        // Remove any existing reply keyboard first (clean state)
+        $bot->removeReplyKeyboard($chat_id);
         
-        // Combine inline keyboard and reply keyboard
-        // We'll use reply keyboard as main, and keep inline for web app
+        // Send message with inline keyboard menu
+        // Users can also use / commands directly or the menu button (/) for quick access
         $bot->sendMessage([
             'chat_id' => $chat_id,
             'text' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($reply_keyboard)
-        ]);
-        
-        // Send separate message with inline keyboard for web app
-        $bot->sendMessage([
-            'chat_id' => $chat_id,
-            'text' => '🌐 ' . ($keyboard_texts[$lang][0] ?? 'Open Web App'),
             'reply_markup' => json_encode($keyboard)
         ]);
     }
 }
+
 

@@ -85,6 +85,20 @@ class TelegramAPI {
     public function answerPreCheckoutQuery($params) {
         return $this->request('answerPreCheckoutQuery', $params);
     }
+    
+    /**
+     * Remove reply keyboard (hide keyboard)
+     */
+    public function removeReplyKeyboard($chat_id, $text = null) {
+        $params = [
+            'chat_id' => $chat_id,
+            'reply_markup' => json_encode(['remove_keyboard' => true])
+        ];
+        if ($text !== null) {
+            $params['text'] = $text;
+        }
+        return $this->request('sendMessage', $params);
+    }
 }
 
 /**
@@ -211,6 +225,10 @@ class TelegramUser {
     
     public function getUsername() {
         return $this->data['username'] ?? null;
+    }
+    
+    public function getFirstName() {
+        return $this->data['first_name'] ?? null;
     }
     
     /**
